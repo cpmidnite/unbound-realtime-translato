@@ -16,6 +16,7 @@ interface ControllerDependencies {
   dispatcher: Dispatcher;
   users: UsersStore;
   getMessage(channelId: string, messageId: string): any;
+  getLoadedMessages?(): any[];
   translate(text: string): Promise<Translation | null>;
   abortTranslations(): void;
   onError(error: unknown): void;
@@ -65,11 +66,19 @@ function isAbortError(error: unknown): boolean {
 export function createRealtimeController(
   dependencies: ControllerDependencies,
 ): RealtimeController {
+  const historyActionTypes = [
+    'LOAD_MESSAGES_SUCCESS',
+    'LOCAL_MESSAGES_LOADED',
+    'LOAD_MESSAGES_AROUND_SUCCESS',
+  ] as const;
   const modified = new Map<string, ModifiedMessage>();
-  const pending = new Set<string>();
+  const pending = new Map<string, number>();
+  const historyQueue: any[] = [];
   let active = false;
+  let generation = 0;
+  let processingHistoryGeneration: number | undefined;
 
-  async function translateMessage(message: any): Promise<void> {
+  async function translateMessage(message: any, workGeneration: number): Promise<void> {
     const messageId = typeof message?.id === 'string' ? message.id : null;
     const channelId = channelIdOf(message);
     const content = typeof message?.content === 'string' ? message.content : '';
@@ -80,17 +89,17 @@ export function createRealtimeController(
       || !channelId
       || !content.trim()
       || content.includes(TRANSLATION_MARKER)
-      || pending.has(messageId)
+      || pending.get(messageId) === workGeneration
     ) return;
 
     const currentUserId = dependencies.users.getCurrentUser()?.id;
     if (currentUserId && authorIdOf(message) === currentUserId) return;
 
-    pending.add(messageId);
+    pending.set(messageId, workGeneration);
 
     try {
       const translation = await dependencies.translate(content);
-      if (!active || !translation) return;
+      if (!active || workGeneration !== generation || !translation) return;
 
       const current = dependencies.getMessage(channelId, messageId) ?? message;
       if (current?.content !== content) return;
@@ -121,14 +130,59 @@ export function createRealtimeController(
         fallback: updated,
       });
     } finally {
-      pending.delete(messageId);
+      if (pending.get(messageId) === workGeneration) pending.delete(messageId);
     }
   }
 
   const onMessageCreate = (event: any): void => {
-    void translateMessage(event?.message).catch((error) => {
-      if (active && !isAbortError(error)) dependencies.onError(error);
+    const workGeneration = generation;
+    void translateMessage(event?.message, workGeneration).catch((error) => {
+      if (
+        active
+        && workGeneration === generation
+        && !isAbortError(error)
+      ) dependencies.onError(error);
     });
+  };
+
+  async function processHistoryQueue(workGeneration: number): Promise<void> {
+    if (processingHistoryGeneration === workGeneration) return;
+    processingHistoryGeneration = workGeneration;
+
+    try {
+      while (
+        active
+        && workGeneration === generation
+        && historyQueue.length > 0
+      ) {
+        const message = historyQueue.shift();
+
+        try {
+          await translateMessage(message, workGeneration);
+        } catch (error) {
+          if (
+            active
+            && workGeneration === generation
+            && !isAbortError(error)
+          ) dependencies.onError(error);
+        }
+      }
+    } finally {
+      if (processingHistoryGeneration === workGeneration) {
+        processingHistoryGeneration = undefined;
+      }
+    }
+  }
+
+  function enqueueHistory(messages: any[] | undefined): void {
+    if (!active || !Array.isArray(messages) || messages.length === 0) return;
+    const workGeneration = generation;
+    historyQueue.push(...messages);
+    void processHistoryQueue(workGeneration);
+  }
+
+  const onHistoryLoaded = (event: any): void => {
+    enqueueHistory(event?.messages);
   };
 
   function restoreMessages(): void {
@@ -154,14 +208,23 @@ export function createRealtimeController(
   return {
     start(): void {
       if (active) return;
+      generation += 1;
       active = true;
       dependencies.dispatcher.subscribe('MESSAGE_CREATE', onMessageCreate);
+      for (const type of historyActionTypes) {
+        dependencies.dispatcher.subscribe(type, onHistoryLoaded);
+      }
+      enqueueHistory(dependencies.getLoadedMessages?.());
     },
 
     stop(): void {
       if (!active) return;
       active = false;
       dependencies.dispatcher.unsubscribe('MESSAGE_CREATE', onMessageCreate);
+      for (const type of historyActionTypes) {
+        dependencies.dispatcher.unsubscribe(type, onHistoryLoaded);
+      }
+      historyQueue.length = 0;
       dependencies.abortTranslations();
       pending.clear();
       restoreMessages();

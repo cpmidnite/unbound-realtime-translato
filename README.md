@@ -1,6 +1,6 @@
 # Unbound Realtime Translator
 
-A minimal Unbound plugin for iOS and Android that watches new incoming Discord messages and, when Google detects a non-English source language, adds an English translation beneath the original message.
+A minimal Unbound plugin for iOS and Android that watches loaded and new Discord messages and, when Google detects a non-English source language, adds an English translation beneath the original message.
 
 ```text
 Hola amigos
@@ -9,7 +9,10 @@ Hola amigos
 
 ## What it does
 
-- Listens only for new `MESSAGE_CREATE` events while enabled.
+- Translates messages already loaded in the selected channel when the plugin starts.
+- Translates cached history, older pages, and jump-around results as Discord loads them.
+- Handles new `MESSAGE_CREATE` events immediately while processing history sequentially to avoid a burst of translation requests.
+- Does not automatically download an entire channel archive; keep scrolling to load and translate older pages.
 - Skips messages authored by the signed-in user, empty messages, and link/emoji-only messages.
 - Uses Google's keyless, Google Translate-compatible web endpoint with automatic language detection.
 - Does not add a translation line when the detected source language is English.
@@ -46,6 +49,28 @@ The ZIP already contains the built `index.js`. No development tools are needed j
 
 GitHub Pages is not required. Unbound fetches `main` relative to the manifest URL, so keeping `manifest.json` and `index.js` together is sufficient.
 
+### Unbound v0.5.7 iOS workaround
+
+Unbound v0.5.7 can save URL-installed plugins under `Unbound/PLUGINS`, while the iOS loader scans `Unbound/Plugins`. Its Plugins screen can also crash while drawing an installed plugin card. If that happens:
+
+1. Completely close Discord.
+2. Move `realtime-translator-en` from `Unbound/PLUGINS` into `Unbound/Plugins`.
+3. In `Unbound/settings.json`, preserve any existing keys and merge this state into the root object (the complete minimal file is shown):
+
+   ```json
+   {
+     "plugins": {
+       "states": {
+         "realtime-translator-en": true
+       }
+     }
+   }
+   ```
+
+4. Restart Discord and avoid opening the Plugins screen until Unbound fixes the upstream rendering issue.
+
+The folder mismatch and Plugins-screen crash are Unbound issues, not failures in the translator bundle.
+
 ### Correct the author metadata
 
 Before publishing, edit the `authors` entry in `manifest.json`:
@@ -54,7 +79,7 @@ Before publishing, edit the `authors` entry in `manifest.json`:
 "authors": [{ "name": "Your name", "id": "Your Discord user ID" }]
 ```
 
-The included `"id": "0"` is a schema-compatible placeholder and does not affect plugin behavior.
+If you fork the project under a different author, replace both the included name and Discord user ID. Author metadata does not affect plugin behavior.
 
 ## Update a hosted copy
 
@@ -63,7 +88,7 @@ If you change the source:
 1. Bump `version` in `manifest.json`.
 2. Run the checks and build described below.
 3. Commit the changed `manifest.json`, `index.js`, and source files.
-4. On the phone, remove the old copy, add the same manifest URL again, and re-enable it. The current Unbound client accepts `updates` metadata but does not use it for automatic plugin updates.
+4. Completely close Discord, then replace `manifest.json` and `index.js` inside `Unbound/Plugins/realtime-translator-en` and restart. Because the plugin ID is unchanged, its enabled state is preserved. The current Unbound client accepts `updates` metadata but does not use it for automatic plugin updates.
 
 ## Develop and build
 
@@ -79,9 +104,10 @@ bun run check
 Useful files:
 
 - `src/index.ts` wires the plugin to Unbound's documented Flux API.
-- `src/controller.ts` handles incoming messages and local display/restoration.
+- `src/controller.ts` handles loaded-history and incoming messages plus local display/restoration.
+- `src/messages.ts` adapts Discord's selected-channel message collection for the startup scan.
 - `src/translation.ts` contains the endpoint, response parser, timeout, and cache.
-- `tests/` covers English skipping, non-Latin text, caching, in-flight deduplication, failures, incoming-message filtering, edit races, teardown, and manifest resolution.
+- `tests/` covers loaded history, new messages, Discord collection shapes, lifecycle races, English skipping, non-Latin text, caching, in-flight deduplication, failures, edit races, teardown, and manifest resolution.
 
 To use another endpoint that returns the same Google array response, change `DEFAULT_TRANSLATION_ENDPOINT` in `src/translation.ts`, then rebuild.
 

@@ -7,24 +7,26 @@ type EventHandler = (event: any) => void;
 function harness(result: { text: string; detectedLanguage: string } | null = {
   text: 'Hello *friend* @everyone',
   detectedLanguage: 'es',
-}) {
-  let handler: EventHandler | undefined;
+}, options: { loadedMessages?: any[] } = {}) {
+  const handlers = new Map<string, EventHandler>();
   const dispatched: any[] = [];
   const messages = new Map<string, any>();
   let translateCalls = 0;
-  let unsubscribed = false;
+  const unsubscribedTypes = new Set<string>();
 
-  const controller = createRealtimeController({
+  for (const message of options.loadedMessages ?? []) messages.set(message.id, message);
+
+  const dependencies = {
     dispatcher: {
-      subscribe(type, callback) {
-        expect(type).toBe('MESSAGE_CREATE');
-        handler = callback;
+      subscribe(type: string, callback: EventHandler) {
+        expect(handlers.has(type)).toBe(false);
+        handlers.set(type, callback);
       },
-      unsubscribe(type, callback) {
-        expect(type).toBe('MESSAGE_CREATE');
-        expect(handler).toBeDefined();
-        expect(callback).toBe(handler!);
-        unsubscribed = true;
+      unsubscribe(type: string, callback: EventHandler) {
+        expect(handlers.get(type)).toBeDefined();
+        expect(callback).toBe(handlers.get(type)!);
+        handlers.delete(type);
+        unsubscribedTypes.add(type);
       },
       dispatch(event: any) {
         dispatched.push(event);
@@ -32,16 +34,21 @@ function harness(result: { text: string; detectedLanguage: string } | null = {
       },
     },
     users: { getCurrentUser: () => ({ id: 'me' }) },
-    getMessage: (_channelId, messageId) => messages.get(messageId),
+    getMessage: (_channelId: string, messageId: string) => messages.get(messageId),
     translate: async () => {
       translateCalls += 1;
       return result;
     },
     abortTranslations: () => {},
-    onError: (error) => {
+    onError: (error: unknown) => {
       throw error;
     },
-  });
+    ...(options.loadedMessages
+      ? { getLoadedMessages: () => options.loadedMessages! }
+      : {}),
+  };
+
+  const controller = createRealtimeController(dependencies);
 
   return {
     controller,
@@ -49,14 +56,18 @@ function harness(result: { text: string; detectedLanguage: string } | null = {
     messages,
     emit(message: any) {
       messages.set(message.id, message);
-      handler?.({ type: 'MESSAGE_CREATE', message });
+      handlers.get('MESSAGE_CREATE')?.({ type: 'MESSAGE_CREATE', message });
+    },
+    emitAction(type: string, event: Record<string, any>) {
+      for (const message of event.messages ?? []) messages.set(message.id, message);
+      handlers.get(type)?.({ ...event, type });
     },
     flush: () => new Promise((resolve) => setTimeout(resolve, 0)),
     get translateCalls() {
       return translateCalls;
     },
     get unsubscribed() {
-      return unsubscribed;
+      return unsubscribedTypes;
     },
   };
 }
@@ -81,6 +92,70 @@ describe('realtime message controller', () => {
     expect(h.dispatched[0].log_edit).toBe(false);
   });
 
+  test('translates historical messages from every history action', async () => {
+    const h = harness({ text: 'Hello', detectedLanguage: 'es' });
+    h.controller.start();
+
+    for (const [type, message] of [
+      ['LOAD_MESSAGES_SUCCESS', {
+        id: 'history-1',
+        channel_id: 'c1',
+        content: 'Hola',
+        author: { id: 'other' },
+      }],
+      ['LOCAL_MESSAGES_LOADED', {
+        id: 'history-2',
+        channel_id: 'c1',
+        content: 'Buenos días',
+        author: { id: 'other' },
+      }],
+      ['LOAD_MESSAGES_AROUND_SUCCESS', {
+        id: 'history-3',
+        channel_id: 'c1',
+        content: 'Buenas noches',
+        author: { id: 'other' },
+      }],
+    ] as const) {
+      h.emitAction(type, { messages: [message] });
+    }
+    await h.flush();
+
+    expect(h.dispatched.map((event) => ({
+      id: event.message.id,
+      content: event.message.content,
+    }))).toEqual([
+      { id: 'history-1', content: 'Hola\n-# ↳ English: Hello' },
+      { id: 'history-2', content: 'Buenos días\n-# ↳ English: Hello' },
+      { id: 'history-3', content: 'Buenas noches\n-# ↳ English: Hello' },
+    ]);
+  });
+
+  test('translates messages already loaded when the controller starts', async () => {
+    const h = harness(
+      { text: 'Hello', detectedLanguage: 'es' },
+      {
+        loadedMessages: [
+          {
+            id: 'loaded-1',
+            channel_id: 'c1',
+            content: 'Hola desde antes',
+            author: { id: 'other' },
+          },
+        ],
+      },
+    );
+
+    h.controller.start();
+    await h.flush();
+
+    expect(h.dispatched.map((event) => ({
+      id: event.message.id,
+      content: event.message.content,
+    }))).toEqual([
+      { id: 'loaded-1', content: 'Hola desde antes\n-# ↳ English: Hello' },
+    ]);
+  });
+
   test('ignores the current user and detected-English messages', async () => {
     const own = harness();
     own.controller.start();
@@ -100,11 +175,11 @@ describe('realtime message controller', () => {
     const h = harness();
     h.controller = createRealtimeController({
       dispatcher: {
-        subscribe(_type, callback) {
-          (h as any).pendingHandler = callback;
+        subscribe(type, callback) {
+          if (type === 'MESSAGE_CREATE') (h as any).pendingHandler = callback;
         },
         unsubscribe() {},
-        dispatch(event) {
+        dispatch(event: any) {
           h.dispatched.push(event);
         },
       },
@@ -126,6 +201,71 @@ describe('realtime message controller', () => {
     expect(h.dispatched).toHaveLength(0);
   });
 
+  test('isolates pending translation work across controller restarts', async () => {
+    type TranslationResult = { text: string; detectedLanguage: string };
+    const handlers = new Map<string, EventHandler>();
+    const dispatched: any[] = [];
+    const messages = new Map<string, any>();
+    const resolvers: Array<(value: TranslationResult) => void> = [];
+    const controller = createRealtimeController({
+      dispatcher: {
+        subscribe(type, callback) {
+          handlers.set(type, callback);
+        },
+        unsubscribe(type) {
+          handlers.delete(type);
+        },
+        dispatch(event: any) {
+          dispatched.push(event);
+          if (event.type === 'MESSAGE_UPDATE') messages.set(event.message.id, event.message);
+        },
+      },
+      users: { getCurrentUser: () => ({ id: 'me' }) },
+      getMessage: (_channelId, messageId) => messages.get(messageId),
+      translate: () => new Promise((resolve) => {
+        resolvers.push(resolve);
+      }),
+      abortTranslations: () => {},
+      onError: (error) => { throw error; },
+    });
+    const message = {
+      id: 'm1',
+      channel_id: 'c1',
+      content: 'Hola',
+      author: { id: 'other' },
+    };
+
+    controller.start();
+    messages.set(message.id, message);
+    handlers.get('LOAD_MESSAGES_SUCCESS')?.({
+      type: 'LOAD_MESSAGES_SUCCESS',
+      messages: [message],
+    });
+    controller.stop();
+
+    controller.start();
+    handlers.get('LOAD_MESSAGES_SUCCESS')?.({
+      type: 'LOAD_MESSAGES_SUCCESS',
+      messages: [message],
+    });
+    expect(resolvers).toHaveLength(2);
+
+    resolvers[0]({ text: 'Stale translation', detectedLanguage: 'es' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(dispatched).toHaveLength(0);
+
+    handlers.get('MESSAGE_CREATE')?.({ type: 'MESSAGE_CREATE', message });
+    expect(resolvers).toHaveLength(2);
+
+    resolvers[1]({ text: 'Current translation', detectedLanguage: 'es' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0].message.content).toBe(
+      'Hola\n-# ↳ English: Current translation',
+    );
+  });
+
   test('unsubscribes and restores locally modified messages on stop', async () => {
     const h = harness({ text: 'Hello', detectedLanguage: 'es' });
     h.controller.start();
@@ -134,7 +274,12 @@ describe('realtime message controller', () => {
 
     h.controller.stop();
 
-    expect(h.unsubscribed).toBe(true);
+    expect(h.unsubscribed).toEqual(new Set([
+      'MESSAGE_CREATE',
+      'LOAD_MESSAGES_SUCCESS',
+      'LOCAL_MESSAGES_LOADED',
+      'LOAD_MESSAGES_AROUND_SUCCESS',
+    ]));
     expect(h.dispatched.at(-1).message.content).toBe('Hola');
   });
 });

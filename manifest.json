@@ -2,13 +2,13 @@
   "id": "realtime-translator-en",
   "type": "plugin",
   "name": "Realtime Translator (English)",
-  "description": "Shows an English translation beneath incoming non-English messages.",
+  "description": "Shows English translations beneath loaded history and new non-English messages.",
   "authors": [
     {
       "name": "Midnite Translator",
       "id": "708732958256791562"
     }
   ],
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "index.js"
 }

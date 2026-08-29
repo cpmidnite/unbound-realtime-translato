@@ -1,5 +1,13 @@
 (function () {
 'use strict';
+function _array_like_to_array(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_without_holes(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array(arr);
+}
 function asyncGeneratorStep$1(gen, resolve, reject, _next, _throw, key, arg) {
     try {
         var info = gen[key](arg);
@@ -43,6 +51,14 @@ function _instanceof(left, right) {
         return !!right[Symbol.hasInstance](left);
     } else return left instanceof right;
 }
+function _iterable_to_array(iter) {
+    if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
+        return Array.from(iter);
+    }
+}
+function _non_iterable_spread() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
 function _object_spread(target) {
     for(var i = 1; i < arguments.length; i++){
         var source = arguments[i] != null ? arguments[i] : {};
@@ -75,6 +91,9 @@ function _object_spread_props(target, source) {
         });
     }
     return target;
+}
+function _to_consumable_array(arr) {
+    return _array_without_holes(arr) || _iterable_to_array(arr) || _unsupported_iterable_to_array(arr) || _non_iterable_spread();
 }
 function _ts_generator$1(thisArg, body) {
     var f, y, t, _ = {
@@ -175,6 +194,14 @@ function _ts_generator$1(thisArg, body) {
         };
     }
 }
+function _unsupported_iterable_to_array(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array(o, minLen);
+}
 var TRANSLATION_MARKER = '\n-# ↳ English: ';
 function toPlainMessage(message) {
     if (typeof (message === null || message === void 0 ? void 0 : message.toJS) === 'function') return message.toJS();
@@ -198,10 +225,18 @@ function isAbortError(error) {
     return _instanceof(error, Error) && error.name === 'AbortError';
 }
 function createRealtimeController(dependencies) {
+    var historyActionTypes = [
+        'LOAD_MESSAGES_SUCCESS',
+        'LOCAL_MESSAGES_LOADED',
+        'LOAD_MESSAGES_AROUND_SUCCESS'
+    ];
     var modified = new Map();
-    var pending = new Set();
+    var pending = new Map();
+    var historyQueue = [];
     var active = false;
-    function translateMessage(message) {
+    var generation = 0;
+    var processingHistoryGeneration;
+    function translateMessage(message, workGeneration) {
         return _async_to_generator$1(function() {
             var _dependencies_users_getCurrentUser, messageId, channelId, content, currentUserId, _dependencies_getMessage, _plain_channel_id, translation, current, safeTranslation, decoratedContent, plain, updated;
             return _ts_generator$1(this, function(_state) {
@@ -210,14 +245,14 @@ function createRealtimeController(dependencies) {
                         messageId = typeof (message === null || message === void 0 ? void 0 : message.id) === 'string' ? message.id : null;
                         channelId = channelIdOf(message);
                         content = typeof (message === null || message === void 0 ? void 0 : message.content) === 'string' ? message.content : '';
-                        if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER) || pending.has(messageId)) return [
+                        if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER) || pending.get(messageId) === workGeneration) return [
                             2
                         ];
                         currentUserId = (_dependencies_users_getCurrentUser = dependencies.users.getCurrentUser()) === null || _dependencies_users_getCurrentUser === void 0 ? void 0 : _dependencies_users_getCurrentUser.id;
                         if (currentUserId && authorIdOf(message) === currentUserId) return [
                             2
                         ];
-                        pending.add(messageId);
+                        pending.set(messageId, workGeneration);
                         _state.label = 1;
                     case 1:
                         _state.trys.push([
@@ -232,7 +267,7 @@ function createRealtimeController(dependencies) {
                         ];
                     case 2:
                         translation = _state.sent();
-                        if (!active || !translation) return [
+                        if (!active || workGeneration !== generation || !translation) return [
                             2
                         ];
                         current = (_dependencies_getMessage = dependencies.getMessage(channelId, messageId)) !== null && _dependencies_getMessage !== void 0 ? _dependencies_getMessage : message;
@@ -267,7 +302,7 @@ function createRealtimeController(dependencies) {
                             4
                         ];
                     case 3:
-                        pending.delete(messageId);
+                        if (pending.get(messageId) === workGeneration) pending.delete(messageId);
                         return [
                             7
                         ];
@@ -280,9 +315,95 @@ function createRealtimeController(dependencies) {
         })();
     }
     var onMessageCreate = function onMessageCreate(event) {
-        void translateMessage(event === null || event === void 0 ? void 0 : event.message).catch(function(error) {
-            if (active && !isAbortError(error)) dependencies.onError(error);
+        var workGeneration = generation;
+        void translateMessage(event === null || event === void 0 ? void 0 : event.message, workGeneration).catch(function(error) {
+            if (active && workGeneration === generation && !isAbortError(error)) dependencies.onError(error);
         });
+    };
+    function processHistoryQueue(workGeneration) {
+        return _async_to_generator$1(function() {
+            var message, error;
+            return _ts_generator$1(this, function(_state) {
+                switch(_state.label){
+                    case 0:
+                        if (processingHistoryGeneration === workGeneration) return [
+                            2
+                        ];
+                        processingHistoryGeneration = workGeneration;
+                        _state.label = 1;
+                    case 1:
+                        _state.trys.push([
+                            1,
+                            ,
+                            8,
+                            9
+                        ]);
+                        _state.label = 2;
+                    case 2:
+                        if (!(active && workGeneration === generation && historyQueue.length > 0)) return [
+                            3,
+                            7
+                        ];
+                        message = historyQueue.shift();
+                        _state.label = 3;
+                    case 3:
+                        _state.trys.push([
+                            3,
+                            5,
+                            ,
+                            6
+                        ]);
+                        return [
+                            4,
+                            translateMessage(message, workGeneration)
+                        ];
+                    case 4:
+                        _state.sent();
+                        return [
+                            3,
+                            6
+                        ];
+                    case 5:
+                        error = _state.sent();
+                        if (active && workGeneration === generation && !isAbortError(error)) dependencies.onError(error);
+                        return [
+                            3,
+                            6
+                        ];
+                    case 6:
+                        return [
+                            3,
+                            2
+                        ];
+                    case 7:
+                        return [
+                            3,
+                            9
+                        ];
+                    case 8:
+                        if (processingHistoryGeneration === workGeneration) {
+                            processingHistoryGeneration = undefined;
+                        }
+                        return [
+                            7
+                        ];
+                    case 9:
+                        return [
+                            2
+                        ];
+                }
+            });
+        })();
+    }
+    function enqueueHistory(messages) {
+        var _historyQueue;
+        if (!active || !Array.isArray(messages) || messages.length === 0) return;
+        var workGeneration = generation;
+        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array(messages));
+        void processHistoryQueue(workGeneration);
+    }
+    var onHistoryLoaded = function onHistoryLoaded(event) {
+        enqueueHistory(event === null || event === void 0 ? void 0 : event.messages);
     };
     function restoreMessages() {
         var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
@@ -320,19 +441,79 @@ function createRealtimeController(dependencies) {
     }
     return {
         start: function start() {
+            var _dependencies_getLoadedMessages;
             if (active) return;
+            generation += 1;
             active = true;
             dependencies.dispatcher.subscribe('MESSAGE_CREATE', onMessageCreate);
+            var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+            try {
+                for(var _iterator = historyActionTypes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                    var type = _step.value;
+                    dependencies.dispatcher.subscribe(type, onHistoryLoaded);
+                }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return != null) {
+                        _iterator.return();
+                    }
+                } finally{
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+            enqueueHistory((_dependencies_getLoadedMessages = dependencies.getLoadedMessages) === null || _dependencies_getLoadedMessages === void 0 ? void 0 : _dependencies_getLoadedMessages.call(dependencies));
         },
         stop: function stop() {
             if (!active) return;
             active = false;
             dependencies.dispatcher.unsubscribe('MESSAGE_CREATE', onMessageCreate);
+            var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+            try {
+                for(var _iterator = historyActionTypes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                    var type = _step.value;
+                    dependencies.dispatcher.unsubscribe(type, onHistoryLoaded);
+                }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return != null) {
+                        _iterator.return();
+                    }
+                } finally{
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+            historyQueue.length = 0;
             dependencies.abortTranslations();
             pending.clear();
             restoreMessages();
         }
     };
+}function toMessageArray(messages) {
+    if (Array.isArray(messages)) return messages;
+    if (Array.isArray(messages === null || messages === void 0 ? void 0 : messages._array)) return messages._array;
+    var converted = typeof (messages === null || messages === void 0 ? void 0 : messages.toArray) === 'function' ? messages.toArray() : undefined;
+    if (Array.isArray(converted)) return converted;
+    if (Array.isArray(messages === null || messages === void 0 ? void 0 : messages.array)) return messages.array;
+    if (messages && typeof messages[Symbol.iterator] === 'function') {
+        return Array.from(messages);
+    }
+    return [];
+}
+function getSelectedChannelMessages(selectedChannelStore, messageStore) {
+    var _selectedChannelStore_getChannelId, _messageStore_getMessages;
+    var selectedChannelId = selectedChannelStore === null || selectedChannelStore === void 0 ? void 0 : (_selectedChannelStore_getChannelId = selectedChannelStore.getChannelId) === null || _selectedChannelStore_getChannelId === void 0 ? void 0 : _selectedChannelStore_getChannelId.call(selectedChannelStore);
+    if (typeof selectedChannelId !== 'string') return [];
+    return toMessageArray(messageStore === null || messageStore === void 0 ? void 0 : (_messageStore_getMessages = messageStore.getMessages) === null || _messageStore_getMessages === void 0 ? void 0 : _messageStore_getMessages.call(messageStore, selectedChannelId));
 }function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
     try {
         var info = gen[key](arg);
@@ -648,12 +829,16 @@ var index = {
         if (controller) return;
         var translator = createTranslationClient();
         var messageStore = window.unbound.metro.findStore('Message');
+        var selectedChannelStore = window.unbound.metro.findStore('SelectedChannel');
         controller = createRealtimeController({
             dispatcher: window.unbound.metro.common.Dispatcher,
             users: window.unbound.metro.stores.Users,
             getMessage: function getMessage(channelId, messageId) {
                 var _messageStore_getMessage;
                 return messageStore === null || messageStore === void 0 ? void 0 : (_messageStore_getMessage = messageStore.getMessage) === null || _messageStore_getMessage === void 0 ? void 0 : _messageStore_getMessage.call(messageStore, channelId, messageId);
+            },
+            getLoadedMessages: function getLoadedMessages() {
+                return getSelectedChannelMessages(selectedChannelStore, messageStore);
             },
             translate: translator.translate,
             abortTranslations: translator.abort,
