@@ -1,6 +1,7 @@
 import type { Translation } from './translation';
 import type { ChatConfigController } from './config';
 import type { OutgoingController } from './outgoing';
+import type { DecorationStore } from './decorations';
 
 const TRANSLATION_MARKER = '\n-# ↳ English: ';
 
@@ -26,6 +27,16 @@ interface ControllerDependencies {
   config?: ChatConfigController;
   /** Supplies the English original for your own outgoing-translated messages. */
   outgoing?: OutgoingController;
+  /**
+   * Records a translation for the render patch to apply.
+   *
+   * When present, translations are kept out of Discord's message store entirely
+   * (BetterDiscord's approach) so the server cannot overwrite them. When
+   * absent, the controller falls back to dispatching a local MESSAGE_UPDATE.
+   */
+  decorations?: DecorationStore;
+  /** Asks the message list to re-render after a decoration is recorded. */
+  requestRerender?(channelId: string, messageId: string): void;
 }
 
 export interface RealtimeController {
@@ -110,6 +121,9 @@ export function createRealtimeController(
       || pending.get(messageId) === workGeneration
     ) return;
 
+    // Already recorded for the render patch: do not translate twice.
+    if (dependencies.decorations?.has(messageId)) return;
+
     // Locally injected Clyde/bot replies are ours, not conversation.
     if (message?.author?.bot === true) return;
 
@@ -182,6 +196,26 @@ export function createRealtimeController(
     originalContent: string,
     line: string,
   ): void {
+    // Preferred path: record the translation and let the render patch apply it.
+    // Discord's store is left untouched, so nothing can overwrite the result.
+    if (dependencies.decorations) {
+      dependencies.decorations.set(messageId, {
+        content: originalContent,
+        line: `English: ${line}`,
+      });
+
+      modified.set(messageId, {
+        channelId,
+        messageId,
+        originalContent,
+        decoratedContent: '',
+        fallback: current,
+      });
+
+      dependencies.requestRerender?.(channelId, messageId);
+      return;
+    }
+
     const decoratedContent = `${originalContent}${TRANSLATION_MARKER}${line}`;
     const plain = toPlainMessage(current);
     const updated = {
@@ -216,6 +250,10 @@ export function createRealtimeController(
    */
   function reconcile(messageId: string): void {
     if (!active) return;
+
+    // In decoration mode the store was never modified, so there is nothing to
+    // repair: the render patch re-applies the line on every render.
+    if (dependencies.decorations) return;
 
     const entry = modified.get(messageId);
     if (!entry) return;
@@ -329,6 +367,14 @@ export function createRealtimeController(
   };
 
   function restoreMessages(): void {
+    // Decoration mode leaves Discord's store untouched; dropping the map is
+    // enough, and the next render shows the original text.
+    if (dependencies.decorations) {
+      dependencies.decorations.clear();
+      modified.clear();
+      return;
+    }
+
     for (const entry of modified.values()) {
       const current = dependencies.getMessage(entry.channelId, entry.messageId) ?? entry.fallback;
       if (current?.content !== entry.decoratedContent) continue;

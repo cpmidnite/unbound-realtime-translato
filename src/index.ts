@@ -4,6 +4,8 @@ import { createChatConfig, STORE_NAME } from './config';
 import { createRealtimeController, type RealtimeController } from './controller';
 import { createOutgoingController, type OutgoingController } from './outgoing';
 import { createCommandController, type CommandController } from './commands';
+import { createRenderController, type RenderController } from './render-patch';
+import { createDecorationStore } from './decorations';
 import { resolvePatchTarget } from './patch-target';
 import { getSelectedChannelMessages } from './messages';
 import { createTranslationClient } from './translation';
@@ -12,6 +14,7 @@ import { buildSettingsPanel } from './settings-panel';
 let controller: RealtimeController | undefined;
 let outgoing: OutgoingController | undefined;
 let commands: CommandController | undefined;
+let render: RenderController | undefined;
 
 function warn(message: string): void {
   try {
@@ -60,6 +63,57 @@ export default {
     const config = createChatConfig(storage.getStore(STORE_NAME));
     const messageStore = metro.findStore('Message');
     const selectedChannelStore = metro.findStore('SelectedChannel');
+    const decorations = createDecorationStore();
+
+    // Patch the render path, as BetterDiscord's Translator does, so Discord's
+    // message store is never modified and the server cannot erase the added
+    // line. Falls back to local store updates when the row renderer cannot be
+    // found on this build.
+    const rowManager = metro.findByName('RowManager');
+    render = createRenderController({
+      rowManager,
+      patchAfter: (parent, method, callback) => patcher.after(
+        parent,
+        method as never,
+        ((ctx: any) => callback(ctx.args, ctx.result)) as never,
+        { caller: STORE_NAME },
+      ),
+      getDecoration: (messageId) => decorations.get(messageId),
+      onError: (error) => console.warn('[Realtime Translator] Row render failed:', error),
+    });
+
+    const renderPatched = (() => {
+      try {
+        return render.start();
+      } catch (error) {
+        console.warn('[Realtime Translator] Could not patch the row renderer:', error);
+        return false;
+      }
+    })();
+
+    if (!renderPatched) {
+      render = undefined;
+      console.warn(
+        '[Realtime Translator] Row renderer unavailable;'
+        + ' falling back to local message updates, which Discord may overwrite.',
+      );
+    }
+
+    /** Nudges the row for one message to re-render without editing the store. */
+    const requestRerender = (channelId: string, messageId: string): void => {
+      try {
+        const message = messageStore?.getMessage?.(channelId, messageId);
+        if (!message) return;
+
+        metro.common.Dispatcher.dispatch({
+          type: 'MESSAGE_UPDATE',
+          message: typeof message.toJS === 'function' ? message.toJS() : { ...message },
+          log_edit: false,
+        });
+      } catch (error) {
+        console.warn('[Realtime Translator] Re-render request failed:', error);
+      }
+    };
 
     outgoing = createOutgoingController({
       messages: resolvePatchTarget(
@@ -85,6 +139,8 @@ export default {
       users: metro.stores.Users,
       config,
       outgoing,
+      decorations: renderPatched ? decorations : undefined,
+      requestRerender: renderPatched ? requestRerender : undefined,
       getMessage: (channelId, messageId) => messageStore?.getMessage?.(channelId, messageId),
       getLoadedMessages: () => getSelectedChannelMessages(
         selectedChannelStore,
@@ -142,9 +198,11 @@ export default {
     controller?.stop();
     outgoing?.stop();
     commands?.stop();
+    render?.stop();
     controller = undefined;
     outgoing = undefined;
     commands = undefined;
+    render = undefined;
   },
 
   getSettingsPanel(): unknown {

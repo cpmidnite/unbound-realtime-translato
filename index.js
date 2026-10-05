@@ -1,6 +1,6 @@
 (function () {
 'use strict';
-function _define_property$2(obj, key, value) {
+function _define_property$3(obj, key, value) {
     if (key in obj) {
         Object.defineProperty(obj, key, {
             value: value,
@@ -11,7 +11,7 @@ function _define_property$2(obj, key, value) {
     } else obj[key] = value;
     return obj;
 }
-function _object_spread$2(target) {
+function _object_spread$3(target) {
     for(var i = 1; i < arguments.length; i++){
         var source = arguments[i] != null ? arguments[i] : {};
         var ownKeys = Object.keys(source);
@@ -21,7 +21,7 @@ function _object_spread$2(target) {
             }));
         }
         ownKeys.forEach(function(key) {
-            _define_property$2(target, key, source[key]);
+            _define_property$3(target, key, source[key]);
         });
     }
     return target;
@@ -59,7 +59,7 @@ function normalizeLanguage(value) {
         if (!channelId) return;
         var chats = readChats();
         var existing = (_chats_channelId = chats[channelId]) !== null && _chats_channelId !== void 0 ? _chats_channelId : {};
-        store.set("chats.".concat(channelId), _object_spread$2({}, existing, changes));
+        store.set("chats.".concat(channelId), _object_spread$3({}, existing, changes));
     }
     return {
         for: function _for(channelId) {
@@ -144,7 +144,7 @@ function _async_to_generator$2(fn) {
         });
     };
 }
-function _define_property$1(obj, key, value) {
+function _define_property$2(obj, key, value) {
     if (key in obj) {
         Object.defineProperty(obj, key, {
             value: value,
@@ -169,7 +169,7 @@ function _iterable_to_array$4(iter) {
 function _non_iterable_spread$4() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _object_spread$1(target) {
+function _object_spread$2(target) {
     for(var i = 1; i < arguments.length; i++){
         var source = arguments[i] != null ? arguments[i] : {};
         var ownKeys = Object.keys(source);
@@ -179,7 +179,7 @@ function _object_spread$1(target) {
             }));
         }
         ownKeys.forEach(function(key) {
-            _define_property$1(target, key, source[key]);
+            _define_property$2(target, key, source[key]);
         });
     }
     return target;
@@ -312,10 +312,10 @@ function _unsupported_iterable_to_array$5(o, minLen) {
     if (n === "Map" || n === "Set") return Array.from(n);
     if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$5(o, minLen);
 }
-var TRANSLATION_MARKER = '\n-# ↳ English: ';
+var TRANSLATION_MARKER$1 = '\n-# ↳ English: ';
 function toPlainMessage(message) {
     if (typeof (message === null || message === void 0 ? void 0 : message.toJS) === 'function') return message.toJS();
-    return _object_spread$1({}, message);
+    return _object_spread$2({}, message);
 }
 function channelIdOf(message) {
     var _ref;
@@ -357,14 +357,18 @@ function createRealtimeController(dependencies) {
     var reconciling = false;
     function translateMessage(message, workGeneration) {
         return _async_to_generator$2(function() {
-            var _message_author, _dependencies_config, _dependencies_users_getCurrentUser, messageId, channelId, content, config, currentUserId, isOwnMessage, _dependencies_getMessage, translation, current, safeTranslation;
+            var _dependencies_decorations, _message_author, _dependencies_config, _dependencies_users_getCurrentUser, messageId, channelId, content, config, currentUserId, isOwnMessage, _dependencies_getMessage, translation, current, safeTranslation;
             return _ts_generator$2(this, function(_state) {
                 switch(_state.label){
                     case 0:
                         messageId = typeof (message === null || message === void 0 ? void 0 : message.id) === 'string' ? message.id : null;
                         channelId = channelIdOf(message);
                         content = typeof (message === null || message === void 0 ? void 0 : message.content) === 'string' ? message.content : '';
-                        if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER) || pending.get(messageId) === workGeneration) return [
+                        if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER$1) || pending.get(messageId) === workGeneration) return [
+                            2
+                        ];
+                        // Already recorded for the render patch: do not translate twice.
+                        if ((_dependencies_decorations = dependencies.decorations) === null || _dependencies_decorations === void 0 ? void 0 : _dependencies_decorations.has(messageId)) return [
                             2
                         ];
                         // Locally injected Clyde/bot replies are ours, not conversation.
@@ -449,9 +453,27 @@ function createRealtimeController(dependencies) {
     }
     function applyTranslation(current, messageId, channelId, originalContent, line) {
         var _plain_channel_id;
-        var decoratedContent = "".concat(originalContent).concat(TRANSLATION_MARKER).concat(line);
+        // Preferred path: record the translation and let the render patch apply it.
+        // Discord's store is left untouched, so nothing can overwrite the result.
+        if (dependencies.decorations) {
+            var _dependencies_requestRerender;
+            dependencies.decorations.set(messageId, {
+                content: originalContent,
+                line: "English: ".concat(line)
+            });
+            modified.set(messageId, {
+                channelId: channelId,
+                messageId: messageId,
+                originalContent: originalContent,
+                decoratedContent: '',
+                fallback: current
+            });
+            (_dependencies_requestRerender = dependencies.requestRerender) === null || _dependencies_requestRerender === void 0 ? void 0 : _dependencies_requestRerender.call(dependencies, channelId, messageId);
+            return;
+        }
+        var decoratedContent = "".concat(originalContent).concat(TRANSLATION_MARKER$1).concat(line);
         var plain = toPlainMessage(current);
-        var updated = _object_spread_props$1(_object_spread$1({}, plain), {
+        var updated = _object_spread_props$1(_object_spread$2({}, plain), {
             id: messageId,
             channel_id: (_plain_channel_id = plain.channel_id) !== null && _plain_channel_id !== void 0 ? _plain_channel_id : channelId,
             content: decoratedContent
@@ -479,13 +501,16 @@ function createRealtimeController(dependencies) {
    */ function reconcile(messageId) {
         var _plain_channel_id;
         if (!active) return;
+        // In decoration mode the store was never modified, so there is nothing to
+        // repair: the render patch re-applies the line on every render.
+        if (dependencies.decorations) return;
         var entry = modified.get(messageId);
         if (!entry) return;
         var current = dependencies.getMessage(entry.channelId, messageId);
         if (!current) return;
         var content = typeof current.content === 'string' ? current.content : '';
         // Already decorated: nothing to do.
-        if (content.includes(TRANSLATION_MARKER)) return;
+        if (content.includes(TRANSLATION_MARKER$1)) return;
         // The message was genuinely edited to something else, so the stored
         // translation no longer describes it. Drop it rather than mislabel.
         if (content !== entry.originalContent) {
@@ -493,7 +518,7 @@ function createRealtimeController(dependencies) {
             return;
         }
         var plain = toPlainMessage(current);
-        var updated = _object_spread_props$1(_object_spread$1({}, plain), {
+        var updated = _object_spread_props$1(_object_spread$2({}, plain), {
             id: messageId,
             channel_id: (_plain_channel_id = plain.channel_id) !== null && _plain_channel_id !== void 0 ? _plain_channel_id : entry.channelId,
             content: entry.decoratedContent
@@ -508,7 +533,7 @@ function createRealtimeController(dependencies) {
         } finally{
             reconciling = false;
         }
-        modified.set(messageId, _object_spread_props$1(_object_spread$1({}, entry), {
+        modified.set(messageId, _object_spread_props$1(_object_spread$2({}, entry), {
             fallback: updated
         }));
     }
@@ -641,6 +666,13 @@ function createRealtimeController(dependencies) {
         enqueueHistory(event === null || event === void 0 ? void 0 : event.messages);
     };
     function restoreMessages() {
+        // Decoration mode leaves Discord's store untouched; dropping the map is
+        // enough, and the next render shows the original text.
+        if (dependencies.decorations) {
+            dependencies.decorations.clear();
+            modified.clear();
+            return;
+        }
         var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
         try {
             for(var _iterator = modified.values()[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
@@ -650,7 +682,7 @@ function createRealtimeController(dependencies) {
                 if ((current === null || current === void 0 ? void 0 : current.content) !== entry.decoratedContent) continue;
                 dependencies.dispatcher.dispatch({
                     type: 'MESSAGE_UPDATE',
-                    message: _object_spread_props$1(_object_spread$1({}, toPlainMessage(current)), {
+                    message: _object_spread_props$1(_object_spread$2({}, toPlainMessage(current)), {
                         id: entry.messageId,
                         channel_id: (_current_channel_id = current.channel_id) !== null && _current_channel_id !== void 0 ? _current_channel_id : entry.channelId,
                         content: entry.originalContent
@@ -1111,7 +1143,7 @@ function _async_to_generator$1(fn) {
         });
     };
 }
-function _define_property(obj, key, value) {
+function _define_property$1(obj, key, value) {
     if (key in obj) {
         Object.defineProperty(obj, key, {
             value: value,
@@ -1130,7 +1162,7 @@ function _iterable_to_array$3(iter) {
 function _non_iterable_spread$3() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _object_spread(target) {
+function _object_spread$1(target) {
     for(var i = 1; i < arguments.length; i++){
         var source = arguments[i] != null ? arguments[i] : {};
         var ownKeys = Object.keys(source);
@@ -1140,7 +1172,7 @@ function _object_spread(target) {
             }));
         }
         ownKeys.forEach(function(key) {
-            _define_property(target, key, source[key]);
+            _define_property$1(target, key, source[key]);
         });
     }
     return target;
@@ -1456,7 +1488,7 @@ function generateNonce() {
                                             (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args))
                                         ];
                                         nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
-                                        outgoing = _object_spread_props(_object_spread({}, message), {
+                                        outgoing = _object_spread_props(_object_spread$1({}, message), {
                                             content: sent,
                                             nonce: nonce
                                         });
@@ -1476,7 +1508,7 @@ function generateNonce() {
                                         // `message.nonce` alone is ignored, which leaves the echoed
                                         // message carrying a different nonce than the one we stored.
                                         existingOptions = nextArgs[3];
-                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$1(existingOptions)) === 'object' ? _object_spread_props(_object_spread({}, existingOptions), {
+                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$1(existingOptions)) === 'object' ? _object_spread_props(_object_spread$1({}, existingOptions), {
                                             nonce: nonce
                                         }) : {
                                             nonce: nonce
@@ -1833,6 +1865,108 @@ function formatStatus(config, channelId) {
         },
         definitions: function definitions() {
             return registered;
+        }
+    };
+}/**
+ * Render-path decoration, the approach BetterDiscord's Translator uses.
+ *
+ * Writing a translation into Discord's message store does not last: the server
+ * copy replaces it after a send and whenever a channel is re-fetched, so the
+ * added line appears and then vanishes. BetterDiscord never touches the store.
+ * It keeps translations in a plain map and patches the render path, so the text
+ * is re-applied on every render and there is nothing for the server to
+ * overwrite.
+ *
+ * Mobile Discord renders messages through `RowManager.generate`, which turns a
+ * message record into the row the list draws. Appending to the content there is
+ * the mobile equivalent of BetterDiscord's `processMessageContent`.
+ */ var TRANSLATION_MARKER = '\n-# ↳ ';
+/**
+ * Appends the decoration to a generated row.
+ *
+ * Exported for testing: it is the whole behaviour, independent of how the
+ * patch is installed.
+ */ function decorateRow(row, getDecoration) {
+    var message = row === null || row === void 0 ? void 0 : row.message;
+    var messageId = typeof (message === null || message === void 0 ? void 0 : message.id) === 'string' ? message.id : null;
+    if (!messageId) return;
+    var content = typeof message.content === 'string' ? message.content : '';
+    if (!content || content.includes(TRANSLATION_MARKER)) return;
+    var decoration = getDecoration(messageId);
+    if (!decoration || !decoration.line) return;
+    // The stored translation describes different text: leave the row alone rather
+    // than label an edited message with a stale translation.
+    if (decoration.content !== content) return;
+    message.content = "".concat(content).concat(TRANSLATION_MARKER).concat(decoration.line);
+}
+function createRenderController(dependencies) {
+    var unpatch;
+    return {
+        start: function start() {
+            var _dependencies_rowManager;
+            if (unpatch) return true;
+            var prototype = (_dependencies_rowManager = dependencies.rowManager) === null || _dependencies_rowManager === void 0 ? void 0 : _dependencies_rowManager.prototype;
+            if (!prototype || typeof prototype.generate !== 'function') return false;
+            var before = prototype.generate;
+            unpatch = dependencies.patchAfter(prototype, 'generate', function(_args, result) {
+                try {
+                    decorateRow(result, dependencies.getDecoration);
+                } catch (error) {
+                    // A throw here would break the message list; never let that happen.
+                    dependencies.onError(error);
+                }
+                return result;
+            });
+            // Confirm the patch took: a lazy proxy swallows defineProperty silently.
+            if (prototype.generate === before) {
+                unpatch();
+                unpatch = undefined;
+                return false;
+            }
+            return true;
+        },
+        stop: function stop() {
+            unpatch === null || unpatch === void 0 ? void 0 : unpatch();
+            unpatch = undefined;
+        },
+        isActive: function isActive() {
+            return Boolean(unpatch);
+        }
+    };
+}/**
+ * The translation map, modelled on BetterDiscord's `translatedMessages`.
+ *
+ * Translations live here and nowhere else. Discord's message store is never
+ * modified, so nothing the server sends can erase them; the render patch reads
+ * this map on every row it builds.
+ */ var MAX_ENTRIES = 1000;
+function createDecorationStore() {
+    var maxEntries = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : MAX_ENTRIES;
+    var entries = new Map();
+    return {
+        set: function set(messageId, decoration) {
+            entries.delete(messageId);
+            entries.set(messageId, decoration);
+            while(entries.size > maxEntries){
+                var oldest = entries.keys().next().value;
+                if (oldest === undefined) break;
+                entries.delete(oldest);
+            }
+        },
+        get: function get(messageId) {
+            return entries.get(messageId);
+        },
+        has: function has(messageId) {
+            return entries.has(messageId);
+        },
+        delete: function _delete(messageId) {
+            entries.delete(messageId);
+        },
+        clear: function clear() {
+            entries.clear();
+        },
+        size: function size() {
+            return entries.size;
         }
     };
 }/**
@@ -2392,6 +2526,17 @@ function createTranslationClient() {
 function _array_without_holes(arr) {
     if (Array.isArray(arr)) return _array_like_to_array(arr);
 }
+function _define_property(obj, key, value) {
+    if (key in obj) {
+        Object.defineProperty(obj, key, {
+            value: value,
+            enumerable: true,
+            configurable: true,
+            writable: true
+        });
+    } else obj[key] = value;
+    return obj;
+}
 function _iterable_to_array(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
@@ -2399,6 +2544,21 @@ function _iterable_to_array(iter) {
 }
 function _non_iterable_spread() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _object_spread(target) {
+    for(var i = 1; i < arguments.length; i++){
+        var source = arguments[i] != null ? arguments[i] : {};
+        var ownKeys = Object.keys(source);
+        if (typeof Object.getOwnPropertySymbols === "function") {
+            ownKeys = ownKeys.concat(Object.getOwnPropertySymbols(source).filter(function(sym) {
+                return Object.getOwnPropertyDescriptor(source, sym).enumerable;
+            }));
+        }
+        ownKeys.forEach(function(key) {
+            _define_property(target, key, source[key]);
+        });
+    }
+    return target;
 }
 function _to_consumable_array(arr) {
     return _array_without_holes(arr) || _iterable_to_array(arr) || _unsupported_iterable_to_array(arr) || _non_iterable_spread();
@@ -2414,6 +2574,7 @@ function _unsupported_iterable_to_array(o, minLen) {
 var controller;
 var outgoing;
 var commands;
+var render;
 function warn(message) {
     try {
         window.unbound.toasts.showToast({
@@ -2464,6 +2625,54 @@ var index = {
         var config = createChatConfig(window.unbound.storage.getStore(STORE_NAME));
         var messageStore = window.unbound.metro.findStore('Message');
         var selectedChannelStore = window.unbound.metro.findStore('SelectedChannel');
+        var decorations = createDecorationStore();
+        // Patch the render path, as BetterDiscord's Translator does, so Discord's
+        // message store is never modified and the server cannot erase the added
+        // line. Falls back to local store updates when the row renderer cannot be
+        // found on this build.
+        var rowManager = window.unbound.metro.findByName('RowManager');
+        render = createRenderController({
+            rowManager: rowManager,
+            patchAfter: function patchAfter(parent, method, callback) {
+                return window.unbound.patcher.after(parent, method, function(ctx) {
+                    return callback(ctx.args, ctx.result);
+                }, {
+                    caller: STORE_NAME
+                });
+            },
+            getDecoration: function getDecoration(messageId) {
+                return decorations.get(messageId);
+            },
+            onError: function onError(error) {
+                return console.warn('[Realtime Translator] Row render failed:', error);
+            }
+        });
+        var renderPatched = function() {
+            try {
+                return render.start();
+            } catch (error) {
+                console.warn('[Realtime Translator] Could not patch the row renderer:', error);
+                return false;
+            }
+        }();
+        if (!renderPatched) {
+            render = undefined;
+            console.warn('[Realtime Translator] Row renderer unavailable;' + ' falling back to local message updates, which Discord may overwrite.');
+        }
+        /** Nudges the row for one message to re-render without editing the store. */ var requestRerender = function requestRerender(channelId, messageId) {
+            try {
+                var _messageStore_getMessage;
+                var message = messageStore === null || messageStore === void 0 ? void 0 : (_messageStore_getMessage = messageStore.getMessage) === null || _messageStore_getMessage === void 0 ? void 0 : _messageStore_getMessage.call(messageStore, channelId, messageId);
+                if (!message) return;
+                window.unbound.metro.common.Dispatcher.dispatch({
+                    type: 'MESSAGE_UPDATE',
+                    message: typeof message.toJS === 'function' ? message.toJS() : _object_spread({}, message),
+                    log_edit: false
+                });
+            } catch (error) {
+                console.warn('[Realtime Translator] Re-render request failed:', error);
+            }
+        };
         outgoing = createOutgoingController({
             messages: resolvePatchTarget(window.unbound.metro.api.Messages, [
                 'sendMessage',
@@ -2496,6 +2705,8 @@ var index = {
             users: window.unbound.metro.stores.Users,
             config: config,
             outgoing: outgoing,
+            decorations: renderPatched ? decorations : undefined,
+            requestRerender: renderPatched ? requestRerender : undefined,
             getMessage: function getMessage(channelId, messageId) {
                 var _messageStore_getMessage;
                 return messageStore === null || messageStore === void 0 ? void 0 : (_messageStore_getMessage = messageStore.getMessage) === null || _messageStore_getMessage === void 0 ? void 0 : _messageStore_getMessage.call(messageStore, channelId, messageId);
@@ -2557,9 +2768,11 @@ var index = {
         controller === null || controller === void 0 ? void 0 : controller.stop();
         outgoing === null || outgoing === void 0 ? void 0 : outgoing.stop();
         commands === null || commands === void 0 ? void 0 : commands.stop();
+        render === null || render === void 0 ? void 0 : render.stop();
         controller = undefined;
         outgoing = undefined;
         commands = undefined;
+        render = undefined;
     },
     getSettingsPanel: function getSettingsPanel() {
         return buildSettingsPanel();
