@@ -1,6 +1,6 @@
 (function () {
 'use strict';
-function _define_property$3(obj, key, value) {
+function _define_property$4(obj, key, value) {
     if (key in obj) {
         Object.defineProperty(obj, key, {
             value: value,
@@ -21,12 +21,12 @@ function _object_spread$3(target) {
             }));
         }
         ownKeys.forEach(function(key) {
-            _define_property$3(target, key, source[key]);
+            _define_property$4(target, key, source[key]);
         });
     }
     return target;
 }
-function _type_of$3(obj) {
+function _type_of$4(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -52,7 +52,7 @@ function normalizeLanguage(value) {
  */ function createChatConfig(store) {
     function readChats() {
         var chats = store.get('chats', {});
-        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$3(chats)) === 'object' ? chats : {};
+        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$4(chats)) === 'object' ? chats : {};
     }
     function patch(channelId, changes) {
         var _chats_channelId;
@@ -65,7 +65,7 @@ function normalizeLanguage(value) {
         for: function _for(channelId) {
             if (typeof channelId !== 'string' || !channelId) return DISABLED;
             var entry = readChats()[channelId];
-            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$3(entry)) !== 'object') return DISABLED;
+            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$4(entry)) !== 'object') return DISABLED;
             return {
                 incoming: entry.incoming === true,
                 outgoing: entry.outgoing === true,
@@ -110,13 +110,13 @@ function normalizeLanguage(value) {
             });
         }
     };
-}function _array_like_to_array$5(arr, len) {
+}function _array_like_to_array$6(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$4(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$5(arr);
+function _array_without_holes$5(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$6(arr);
 }
 function asyncGeneratorStep$2(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -144,7 +144,7 @@ function _async_to_generator$2(fn) {
         });
     };
 }
-function _define_property$2(obj, key, value) {
+function _define_property$3(obj, key, value) {
     if (key in obj) {
         Object.defineProperty(obj, key, {
             value: value,
@@ -161,12 +161,12 @@ function _instanceof(left, right) {
         return !!right[Symbol.hasInstance](left);
     } else return left instanceof right;
 }
-function _iterable_to_array$4(iter) {
+function _iterable_to_array$5(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$4() {
+function _non_iterable_spread$5() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread$2(target) {
@@ -179,7 +179,7 @@ function _object_spread$2(target) {
             }));
         }
         ownKeys.forEach(function(key) {
-            _define_property$2(target, key, source[key]);
+            _define_property$3(target, key, source[key]);
         });
     }
     return target;
@@ -202,8 +202,8 @@ function _object_spread_props$1(target, source) {
     }
     return target;
 }
-function _to_consumable_array$4(arr) {
-    return _array_without_holes$4(arr) || _iterable_to_array$4(arr) || _unsupported_iterable_to_array$5(arr) || _non_iterable_spread$4();
+function _to_consumable_array$5(arr) {
+    return _array_without_holes$5(arr) || _iterable_to_array$5(arr) || _unsupported_iterable_to_array$6(arr) || _non_iterable_spread$5();
 }
 function _ts_generator$2(thisArg, body) {
     var f, y, t, _ = {
@@ -304,15 +304,15 @@ function _ts_generator$2(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array$5(o, minLen) {
+function _unsupported_iterable_to_array$6(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$5(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$6(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$5(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$6(o, minLen);
 }
-var TRANSLATION_MARKER$1 = '\n-# ↳ English: ';
+var TRANSLATION_MARKER = '\n-# ↳ English: ';
 function toPlainMessage(message) {
     if (typeof (message === null || message === void 0 ? void 0 : message.toJS) === 'function') return message.toJS();
     return _object_spread$2({}, message);
@@ -330,6 +330,15 @@ function authorIdOf(message) {
 }
 function escapeTranslation(text) {
     return text.replace(/\s*\r?\n+\s*/g, ' ').trim().replace(/\\/g, '\\\\').replace(/([*_~`|<>\[\]()])/g, '\\$1').replace(/@/g, '@\u200B');
+}
+/**
+ * Collapses whitespace without escaping markdown.
+ *
+ * The render patch puts the line in its own text node, where backslashes would
+ * be shown literally; only the store-update fallback needs escaping. `@` is
+ * still neutralised so a translation can never become a live mention.
+ */ function plainLine(text) {
+    return text.replace(/\s*\r?\n+\s*/g, ' ').trim().replace(/@/g, '@\u200B');
 }
 function isAbortError(error) {
     return _instanceof(error, Error) && error.name === 'AbortError';
@@ -364,7 +373,7 @@ function createRealtimeController(dependencies) {
                         messageId = typeof (message === null || message === void 0 ? void 0 : message.id) === 'string' ? message.id : null;
                         channelId = channelIdOf(message);
                         content = typeof (message === null || message === void 0 ? void 0 : message.content) === 'string' ? message.content : '';
-                        if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER$1) || pending.get(messageId) === workGeneration) return [
+                        if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER) || pending.get(messageId) === workGeneration) return [
                             2
                         ];
                         // Already recorded for the render patch: do not translate twice.
@@ -418,7 +427,7 @@ function createRealtimeController(dependencies) {
                         if (!safeTranslation) return [
                             2
                         ];
-                        applyTranslation(current, messageId, channelId, content, safeTranslation);
+                        applyTranslation(current, messageId, channelId, content, safeTranslation, plainLine(translation.text));
                         return [
                             3,
                             4
@@ -449,9 +458,9 @@ function createRealtimeController(dependencies) {
         if (!safeEnglish) return;
         var current = (_dependencies_getMessage = dependencies.getMessage(channelId, messageId)) !== null && _dependencies_getMessage !== void 0 ? _dependencies_getMessage : message;
         if ((current === null || current === void 0 ? void 0 : current.content) !== content) return;
-        applyTranslation(current, messageId, channelId, content, safeEnglish);
+        applyTranslation(current, messageId, channelId, content, safeEnglish, plainLine(record.english));
     }
-    function applyTranslation(current, messageId, channelId, originalContent, line) {
+    function applyTranslation(current, messageId, channelId, originalContent, line, rawLine) {
         var _plain_channel_id;
         // Preferred path: record the translation and let the render patch apply it.
         // Discord's store is left untouched, so nothing can overwrite the result.
@@ -459,7 +468,7 @@ function createRealtimeController(dependencies) {
             var _dependencies_requestRerender;
             dependencies.decorations.set(messageId, {
                 content: originalContent,
-                line: "English: ".concat(line)
+                line: "English: ".concat(rawLine !== null && rawLine !== void 0 ? rawLine : line)
             });
             modified.set(messageId, {
                 channelId: channelId,
@@ -471,7 +480,7 @@ function createRealtimeController(dependencies) {
             (_dependencies_requestRerender = dependencies.requestRerender) === null || _dependencies_requestRerender === void 0 ? void 0 : _dependencies_requestRerender.call(dependencies, channelId, messageId);
             return;
         }
-        var decoratedContent = "".concat(originalContent).concat(TRANSLATION_MARKER$1).concat(line);
+        var decoratedContent = "".concat(originalContent).concat(TRANSLATION_MARKER).concat(line);
         var plain = toPlainMessage(current);
         var updated = _object_spread_props$1(_object_spread$2({}, plain), {
             id: messageId,
@@ -510,7 +519,7 @@ function createRealtimeController(dependencies) {
         if (!current) return;
         var content = typeof current.content === 'string' ? current.content : '';
         // Already decorated: nothing to do.
-        if (content.includes(TRANSLATION_MARKER$1)) return;
+        if (content.includes(TRANSLATION_MARKER)) return;
         // The message was genuinely edited to something else, so the stored
         // translation no longer describes it. Drop it rather than mislabel.
         if (content !== entry.originalContent) {
@@ -558,7 +567,7 @@ function createRealtimeController(dependencies) {
                 }, 0);
             };
             // Some payloads omit the id; re-check everything we have decorated.
-            for(var _iterator = _to_consumable_array$4(modified.keys())[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true)_loop();
+            for(var _iterator = _to_consumable_array$5(modified.keys())[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true)_loop();
         } catch (err) {
             _didIteratorError = true;
             _iteratorError = err;
@@ -659,7 +668,7 @@ function createRealtimeController(dependencies) {
         var _historyQueue;
         if (!active || !Array.isArray(messages) || messages.length === 0) return;
         var workGeneration = generation;
-        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$4(messages));
+        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$5(messages));
         void processHistoryQueue(workGeneration);
     }
     var onHistoryLoaded = function onHistoryLoaded(event) {
@@ -805,7 +814,7 @@ function createRealtimeController(dependencies) {
             restoreMessages();
         }
     };
-}function _type_of$2(obj) {
+}function _type_of$3(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -881,7 +890,7 @@ function maskTokens(input) {
     var restored = text;
     for(var index = 0; index < tokens.length; index += 1){
         var _ret = _loop(index);
-        if (_type_of$2(_ret) === "object") return _ret.v;
+        if (_type_of$3(_ret) === "object") return _ret.v;
     }
     if (restored.includes(SENTINEL)) return null;
     return restored;
@@ -894,7 +903,7 @@ function maskTokens(input) {
     var text = maskTokens(trimmed).text;
     var withoutSentinels = text.replace(new RegExp("".concat(SENTINEL, "\\d+").concat(SENTINEL), 'g'), '');
     return /[A-Za-z\u00C0-\u02FF\u0370-\u1FFF]/.test(withoutSentinels);
-}function _array_like_to_array$4(arr, len) {
+}function _array_like_to_array$5(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
@@ -930,15 +939,15 @@ function _non_iterable_rest() {
     throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _sliced_to_array(arr, i) {
-    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$4(arr, i) || _non_iterable_rest();
+    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$5(arr, i) || _non_iterable_rest();
 }
-function _unsupported_iterable_to_array$4(o, minLen) {
+function _unsupported_iterable_to_array$5(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$4(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$5(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$4(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$5(o, minLen);
 }
 /**
  * Text-triggered configuration, handled inside the send patch.
@@ -1109,13 +1118,13 @@ function help() {
         handled: true,
         reply: "Unknown option `".concat(rawCommand, "`.\n\n").concat(help())
     };
-}function _array_like_to_array$3(arr, len) {
+}function _array_like_to_array$4(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$3(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
+function _array_without_holes$4(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$4(arr);
 }
 function asyncGeneratorStep$1(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -1143,7 +1152,7 @@ function _async_to_generator$1(fn) {
         });
     };
 }
-function _define_property$1(obj, key, value) {
+function _define_property$2(obj, key, value) {
     if (key in obj) {
         Object.defineProperty(obj, key, {
             value: value,
@@ -1154,12 +1163,12 @@ function _define_property$1(obj, key, value) {
     } else obj[key] = value;
     return obj;
 }
-function _iterable_to_array$3(iter) {
+function _iterable_to_array$4(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$3() {
+function _non_iterable_spread$4() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread$1(target) {
@@ -1172,7 +1181,7 @@ function _object_spread$1(target) {
             }));
         }
         ownKeys.forEach(function(key) {
-            _define_property$1(target, key, source[key]);
+            _define_property$2(target, key, source[key]);
         });
     }
     return target;
@@ -1195,8 +1204,8 @@ function _object_spread_props(target, source) {
     }
     return target;
 }
-function _to_consumable_array$3(arr) {
-    return _array_without_holes$3(arr) || _iterable_to_array$3(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$3();
+function _to_consumable_array$4(arr) {
+    return _array_without_holes$4(arr) || _iterable_to_array$4(arr) || _unsupported_iterable_to_array$4(arr) || _non_iterable_spread$4();
 }
 function _ts_generator$1(thisArg, body) {
     var f, y, t, _ = {
@@ -1297,17 +1306,17 @@ function _ts_generator$1(thisArg, body) {
         };
     }
 }
-function _type_of$1(obj) {
+function _type_of$2(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
-function _unsupported_iterable_to_array$3(o, minLen) {
+function _unsupported_iterable_to_array$4(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$4(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$4(o, minLen);
 }
 var MAX_TRACKED_MESSAGES = 500;
 /**
@@ -1409,7 +1418,7 @@ function generateNonce() {
                     var _ctx, _ctx1, _ctx2;
                     var channelId = typeof args[0] === 'string' ? args[0] : null;
                     var message = args[1];
-                    if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args));
+                    if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$4(args));
                     var english = contentOf(message);
                     // Configuration triggers are swallowed: never sent, never
                     // translated. Checked before the per-chat gate so a chat can be
@@ -1436,8 +1445,8 @@ function generateNonce() {
                         return Promise.resolve(CANCELLED_SEND);
                     }
                     var config = dependencies.config.for(channelId);
-                    if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(args));
-                    if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$3(args));
+                    if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$4(args));
+                    if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$4(args));
                     var language = config.outgoingLanguage;
                     // The send becomes asynchronous: translate first, then hand the
                     // rewritten message to Discord's original implementation.
@@ -1485,7 +1494,7 @@ function generateNonce() {
                                     case 4:
                                         if (sent === english) return [
                                             2,
-                                            (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args))
+                                            (_ctx = ctx).original.apply(_ctx, _to_consumable_array$4(args))
                                         ];
                                         nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
                                         outgoing = _object_spread_props(_object_spread$1({}, message), {
@@ -1502,13 +1511,13 @@ function generateNonce() {
                                         // Discord may assign its own nonce, so also index by content:
                                         // the echo is matched on either key.
                                         pendingByContent.set(contentKey(channelId, sent), record);
-                                        nextArgs = _to_consumable_array$3(args);
+                                        nextArgs = _to_consumable_array$4(args);
                                         nextArgs[1] = outgoing;
                                         // The nonce is honoured only in the options argument (index 3);
                                         // `message.nonce` alone is ignored, which leaves the echoed
                                         // message carrying a different nonce than the one we stored.
                                         existingOptions = nextArgs[3];
-                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$1(existingOptions)) === 'object' ? _object_spread_props(_object_spread$1({}, existingOptions), {
+                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$2(existingOptions)) === 'object' ? _object_spread_props(_object_spread$1({}, existingOptions), {
                                             nonce: nonce
                                         }) : {
                                             nonce: nonce
@@ -1523,7 +1532,7 @@ function generateNonce() {
                                         ]);
                                         return [
                                             4,
-                                            (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(nextArgs))
+                                            (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$4(nextArgs))
                                         ];
                                     case 6:
                                         return [
@@ -1548,7 +1557,7 @@ function generateNonce() {
                     // Anything unexpected: send the message untouched rather than
                     // breaking Discord.
                     dependencies.onError(error);
-                    return (_ctx3 = ctx).original.apply(_ctx3, _to_consumable_array$3(args));
+                    return (_ctx3 = ctx).original.apply(_ctx3, _to_consumable_array$4(args));
                 }
             });
             // The patcher swaps the prop; if it still holds the same function, the
@@ -1601,32 +1610,32 @@ function generateNonce() {
             return pendingByNonce.size;
         }
     };
-}function _array_like_to_array$2(arr, len) {
+}function _array_like_to_array$3(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$2(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$2(arr);
+function _array_without_holes$3(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
 }
-function _iterable_to_array$2(iter) {
+function _iterable_to_array$3(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$2() {
+function _non_iterable_spread$3() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _to_consumable_array$2(arr) {
-    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$2(arr) || _non_iterable_spread$2();
+function _to_consumable_array$3(arr) {
+    return _array_without_holes$3(arr) || _iterable_to_array$3(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$3();
 }
-function _unsupported_iterable_to_array$2(o, minLen) {
+function _unsupported_iterable_to_array$3(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
 }
 /** Discord's own enum values; BUILT_IN keeps the command client-side. */ var APPLICATION_COMMAND_TYPE_CHAT = 1;
 var APPLICATION_COMMAND_INPUT_TYPE_BUILT_IN = 0;
@@ -1708,7 +1717,7 @@ function formatStatus(config, channelId) {
             }).filter(function(value) {
                 return Number.isFinite(value);
             });
-            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array$2(ids)) : 0;
+            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array$3(ids)) : 0;
             // Stay strictly negative so we can never shadow a Discord command id.
             return String(Math.min(lowest, 0) - 1);
         } catch (unused) {
@@ -1855,7 +1864,7 @@ function formatStatus(config, channelId) {
                 var matches = function matches(command) {
                     return Array.isArray(requestedType) ? requestedType.includes(command.type) : requestedType === command.type;
                 };
-                return _to_consumable_array$2(result).concat(_to_consumable_array$2(registered.filter(matches)));
+                return _to_consumable_array$3(result).concat(_to_consumable_array$3(registered.filter(matches)));
             });
         },
         stop: function stop() {
@@ -1874,51 +1883,181 @@ function formatStatus(config, channelId) {
  * copy replaces it after a send and whenever a channel is re-fetched, so the
  * added line appears and then vanishes. BetterDiscord never touches the store.
  * It keeps translations in a plain map and patches the render path, so the text
- * is re-applied on every render and there is nothing for the server to
- * overwrite.
+ * is re-applied on every render and there is nothing to overwrite.
  *
- * Mobile Discord renders messages through `RowManager.generate`, which turns a
- * message record into the row the list draws. Appending to the content there is
- * the mobile equivalent of BetterDiscord's `processMessageContent`.
- */ var TRANSLATION_MARKER = '\n-# ↳ ';
+ * On mobile the equivalent seam is the native chat module's `updateRows`, the
+ * call that hands rendered rows to the native list. Two things make it unlike a
+ * normal patch, and both were got wrong before:
+ *
+ *  1. The rows arrive as a JSON STRING in argument 2. They must be parsed,
+ *     mutated, and re-serialised in a `before` patch.
+ *  2. Message content is already PARSED MARKDOWN — an array of nodes such as
+ *     `{ type: 'text', content: 'hi' }` — not a string. Assigning a string to
+ *     `message.content` renders nothing at all.
+ *
+ * Verified against the row shape used by working Vendetta/Revenge plugins
+ * (`clean-urls`, `use-system-emoji`), which patch this same call.
+ */ function _array_like_to_array$2(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_without_holes$2(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$2(arr);
+}
+function _define_property$1(obj, key, value) {
+    if (key in obj) {
+        Object.defineProperty(obj, key, {
+            value: value,
+            enumerable: true,
+            configurable: true,
+            writable: true
+        });
+    } else obj[key] = value;
+    return obj;
+}
+function _iterable_to_array$2(iter) {
+    if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
+        return Array.from(iter);
+    }
+}
+function _non_iterable_spread$2() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _to_consumable_array$2(arr) {
+    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$2(arr) || _non_iterable_spread$2();
+}
+function _type_of$1(obj) {
+    "@swc/helpers - typeof";
+    return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
+}
+function _unsupported_iterable_to_array$2(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
+}
+/** Marks our injected nodes so a row is never decorated twice. */ var INJECTED_FLAG = '__realtimeTranslator';
 /**
- * Appends the decoration to a generated row.
+ * Flattens parsed content back to plain text, to compare against what was
+ * translated.
+ */ function contentToText(content) {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+    return content.map(function(node) {
+        if (typeof node === 'string') return node;
+        if (!node || (typeof node === "undefined" ? "undefined" : _type_of$1(node)) !== 'object') return '';
+        if (node.type === 'text' && typeof node.content === 'string') return node.content;
+        if (node.type === 'emoji' && typeof node.surrogate === 'string') return node.surrogate;
+        if (node.type === 'customEmoji' && typeof node.alt === 'string') return node.alt;
+        if (node.type === 'link' && typeof node.target === 'string') {
+            var inner = contentToText(node.content);
+            return inner || node.target;
+        }
+        if (Array.isArray(node.content)) return contentToText(node.content);
+        if (typeof node.content === 'string') return node.content;
+        if (Array.isArray(node.items)) return contentToText(node.items);
+        return '';
+    }).join('');
+}
+/**
+ * Builds the nodes appended beneath a message.
  *
- * Exported for testing: it is the whole behaviour, independent of how the
- * patch is installed.
+ * `subtext` renders in Discord's small muted style, matching how the desktop
+ * plugin marks a translation as secondary.
+ */ function buildDecorationNodes(line) {
+    var _obj;
+    return [
+        _define_property$1({
+            type: 'text',
+            content: '\n'
+        }, INJECTED_FLAG, true),
+        (_obj = {
+            type: 'subtext'
+        }, _define_property$1(_obj, INJECTED_FLAG, true), _define_property$1(_obj, "content", [
+            {
+                type: 'text',
+                content: "↳ ".concat(line)
+            }
+        ]), _obj)
+    ];
+}
+function alreadyDecorated(content) {
+    return content.some(function(node) {
+        return node && (typeof node === "undefined" ? "undefined" : _type_of$1(node)) === 'object' && node[INJECTED_FLAG];
+    });
+}
+/**
+ * Appends the decoration to one parsed row.
+ *
+ * @returns true when the row was changed.
  */ function decorateRow(row, getDecoration) {
-    var message = row === null || row === void 0 ? void 0 : row.message;
+    // type 1 is a message row; anything else has no content to decorate.
+    if (!row || row.type !== 1) return false;
+    var message = row.message;
     var messageId = typeof (message === null || message === void 0 ? void 0 : message.id) === 'string' ? message.id : null;
-    if (!messageId) return;
-    var content = typeof message.content === 'string' ? message.content : '';
-    if (!content || content.includes(TRANSLATION_MARKER)) return;
+    if (!messageId) return false;
+    var content = message.content;
+    if (!Array.isArray(content) || content.length === 0) return false;
+    if (alreadyDecorated(content)) return false;
     var decoration = getDecoration(messageId);
-    if (!decoration || !decoration.line) return;
-    // The stored translation describes different text: leave the row alone rather
-    // than label an edited message with a stale translation.
-    if (decoration.content !== content) return;
-    message.content = "".concat(content).concat(TRANSLATION_MARKER).concat(decoration.line);
+    if (!(decoration === null || decoration === void 0 ? void 0 : decoration.line)) return false;
+    // The row carries different text than what was translated: leave it alone
+    // rather than label an edited message with a stale translation.
+    if (contentToText(content).trim() !== decoration.content.trim()) return false;
+    message.content = _to_consumable_array$2(content).concat(_to_consumable_array$2(buildDecorationNodes(decoration.line)));
+    return true;
+}
+/** Mutates every message row in a parsed `updateRows` payload. */ function decorateRows(rows, getDecoration) {
+    if (!Array.isArray(rows)) return false;
+    var changed = false;
+    var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+    try {
+        for(var _iterator = rows[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+            var row = _step.value;
+            if (decorateRow(row, getDecoration)) changed = true;
+        }
+    } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+    } finally{
+        try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+                _iterator.return();
+            }
+        } finally{
+            if (_didIteratorError) {
+                throw _iteratorError;
+            }
+        }
+    }
+    return changed;
 }
 function createRenderController(dependencies) {
     var unpatch;
     return {
         start: function start() {
-            var _dependencies_rowManager;
             if (unpatch) return true;
-            var prototype = (_dependencies_rowManager = dependencies.rowManager) === null || _dependencies_rowManager === void 0 ? void 0 : _dependencies_rowManager.prototype;
-            if (!prototype || typeof prototype.generate !== 'function') return false;
-            var before = prototype.generate;
-            unpatch = dependencies.patchAfter(prototype, 'generate', function(_args, result) {
+            var target = dependencies.chatModule;
+            if (!target || typeof target.updateRows !== 'function') return false;
+            var before = target.updateRows;
+            unpatch = dependencies.patchBefore(target, 'updateRows', function(args) {
+                // Never throw: this call renders the message list.
                 try {
-                    decorateRow(result, dependencies.getDecoration);
+                    var raw = args[1];
+                    if (typeof raw !== 'string') return;
+                    var rows = JSON.parse(raw);
+                    if (decorateRows(rows, dependencies.getDecoration)) {
+                        args[1] = JSON.stringify(rows);
+                    }
                 } catch (error) {
-                    // A throw here would break the message list; never let that happen.
                     dependencies.onError(error);
                 }
-                return result;
             });
-            // Confirm the patch took: a lazy proxy swallows defineProperty silently.
-            if (prototype.generate === before) {
+            // A lazy proxy swallows defineProperty silently; confirm the swap took.
+            if (target.updateRows === before) {
                 unpatch();
                 unpatch = undefined;
                 return false;
@@ -2628,14 +2767,14 @@ var index = {
         var decorations = createDecorationStore();
         // Patch the render path, as BetterDiscord's Translator does, so Discord's
         // message store is never modified and the server cannot erase the added
-        // line. Falls back to local store updates when the row renderer cannot be
-        // found on this build.
-        var rowManager = window.unbound.metro.findByName('RowManager');
+        // line. The mobile seam is the native chat module's updateRows, which
+        // receives the rendered rows as a JSON string.
+        var chatModule = window.unbound.native.getNativeModule('NativeChatModule', 'DCDChatManager');
         render = createRenderController({
-            rowManager: rowManager,
-            patchAfter: function patchAfter(parent, method, callback) {
-                return window.unbound.patcher.after(parent, method, function(ctx) {
-                    return callback(ctx.args, ctx.result);
+            chatModule: chatModule,
+            patchBefore: function patchBefore(parent, method, callback) {
+                return window.unbound.patcher.before(parent, method, function(ctx) {
+                    callback(ctx.args);
                 }, {
                     caller: STORE_NAME
                 });

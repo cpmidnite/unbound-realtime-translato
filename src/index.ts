@@ -1,4 +1,4 @@
-import { metro, patcher, storage, toasts } from '@unbound-app/api';
+import { metro, native, patcher, storage, toasts } from '@unbound-app/api';
 
 import { createChatConfig, STORE_NAME } from './config';
 import { createRealtimeController, type RealtimeController } from './controller';
@@ -67,15 +67,15 @@ export default {
 
     // Patch the render path, as BetterDiscord's Translator does, so Discord's
     // message store is never modified and the server cannot erase the added
-    // line. Falls back to local store updates when the row renderer cannot be
-    // found on this build.
-    const rowManager = metro.findByName('RowManager');
+    // line. The mobile seam is the native chat module's updateRows, which
+    // receives the rendered rows as a JSON string.
+    const chatModule = native.getNativeModule('NativeChatModule', 'DCDChatManager');
     render = createRenderController({
-      rowManager,
-      patchAfter: (parent, method, callback) => patcher.after(
+      chatModule,
+      patchBefore: (parent, method, callback) => patcher.before(
         parent,
         method as never,
-        ((ctx: any) => callback(ctx.args, ctx.result)) as never,
+        ((ctx: any) => { callback(ctx.args); }) as never,
         { caller: STORE_NAME },
       ),
       getDecoration: (messageId) => decorations.get(messageId),

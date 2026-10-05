@@ -5,30 +5,40 @@
  * copy replaces it after a send and whenever a channel is re-fetched, so the
  * added line appears and then vanishes. BetterDiscord never touches the store.
  * It keeps translations in a plain map and patches the render path, so the text
- * is re-applied on every render and there is nothing for the server to
- * overwrite.
+ * is re-applied on every render and there is nothing to overwrite.
  *
- * Mobile Discord renders messages through `RowManager.generate`, which turns a
- * message record into the row the list draws. Appending to the content there is
- * the mobile equivalent of BetterDiscord's `processMessageContent`.
+ * On mobile the equivalent seam is the native chat module's `updateRows`, the
+ * call that hands rendered rows to the native list. Two things make it unlike a
+ * normal patch, and both were got wrong before:
+ *
+ *  1. The rows arrive as a JSON STRING in argument 2. They must be parsed,
+ *     mutated, and re-serialised in a `before` patch.
+ *  2. Message content is already PARSED MARKDOWN — an array of nodes such as
+ *     `{ type: 'text', content: 'hi' }` — not a string. Assigning a string to
+ *     `message.content` renders nothing at all.
+ *
+ * Verified against the row shape used by working Vendetta/Revenge plugins
+ * (`clean-urls`, `use-system-emoji`), which patch this same call.
  */
 
 export interface Decoration {
-  /** Content the translation belongs to; a mismatch means it is stale. */
+  /** Plain text the translation belongs to; a mismatch means it is stale. */
   content: string;
-  /** Line appended beneath the content, already escaped. */
+  /** Line appended beneath the content. */
   line: string;
 }
 
+/** A node in Discord's parsed-markdown content array. */
+type ContentNode = Record<string, any>;
+
 interface RenderDependencies {
-  /** RowManager class, whose prototype carries `generate`. */
-  rowManager: any;
-  patchAfter(
+  /** Native chat module exposing `updateRows`. */
+  chatModule: any;
+  patchBefore(
     parent: any,
     method: string,
-    callback: (args: any[], result: any) => any,
+    callback: (args: any[]) => void,
   ): () => void;
-  /** Resolves the decoration for a message, or undefined. */
   getDecoration(messageId: string): Decoration | undefined;
   onError(error: unknown): void;
 }
@@ -39,33 +49,104 @@ export interface RenderController {
   isActive(): boolean;
 }
 
-export const TRANSLATION_MARKER = '\n-# ↳ ';
+/** Marks our injected nodes so a row is never decorated twice. */
+const INJECTED_FLAG = '__realtimeTranslator';
 
 /**
- * Appends the decoration to a generated row.
+ * Flattens parsed content back to plain text, to compare against what was
+ * translated.
+ */
+export function contentToText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+
+  return content
+    .map((node: ContentNode) => {
+      if (typeof node === 'string') return node;
+      if (!node || typeof node !== 'object') return '';
+
+      if (node.type === 'text' && typeof node.content === 'string') return node.content;
+      if (node.type === 'emoji' && typeof node.surrogate === 'string') return node.surrogate;
+      if (node.type === 'customEmoji' && typeof node.alt === 'string') return node.alt;
+      if (node.type === 'link' && typeof node.target === 'string') {
+        const inner = contentToText(node.content);
+        return inner || node.target;
+      }
+
+      if (Array.isArray(node.content)) return contentToText(node.content);
+      if (typeof node.content === 'string') return node.content;
+      if (Array.isArray(node.items)) return contentToText(node.items);
+
+      return '';
+    })
+    .join('');
+}
+
+/**
+ * Builds the nodes appended beneath a message.
  *
- * Exported for testing: it is the whole behaviour, independent of how the
- * patch is installed.
+ * `subtext` renders in Discord's small muted style, matching how the desktop
+ * plugin marks a translation as secondary.
+ */
+export function buildDecorationNodes(line: string): ContentNode[] {
+  return [
+    { type: 'text', content: '\n', [INJECTED_FLAG]: true },
+    {
+      type: 'subtext',
+      [INJECTED_FLAG]: true,
+      content: [{ type: 'text', content: `↳ ${line}` }],
+    },
+  ];
+}
+
+function alreadyDecorated(content: ContentNode[]): boolean {
+  return content.some((node) => node && typeof node === 'object' && node[INJECTED_FLAG]);
+}
+
+/**
+ * Appends the decoration to one parsed row.
+ *
+ * @returns true when the row was changed.
  */
 export function decorateRow(
   row: any,
   getDecoration: (messageId: string) => Decoration | undefined,
-): void {
-  const message = row?.message;
-  const messageId = typeof message?.id === 'string' ? message.id : null;
-  if (!messageId) return;
+): boolean {
+  // type 1 is a message row; anything else has no content to decorate.
+  if (!row || row.type !== 1) return false;
 
-  const content = typeof message.content === 'string' ? message.content : '';
-  if (!content || content.includes(TRANSLATION_MARKER)) return;
+  const message = row.message;
+  const messageId = typeof message?.id === 'string' ? message.id : null;
+  if (!messageId) return false;
+
+  const content = message.content;
+  if (!Array.isArray(content) || content.length === 0) return false;
+  if (alreadyDecorated(content)) return false;
 
   const decoration = getDecoration(messageId);
-  if (!decoration || !decoration.line) return;
+  if (!decoration?.line) return false;
 
-  // The stored translation describes different text: leave the row alone rather
-  // than label an edited message with a stale translation.
-  if (decoration.content !== content) return;
+  // The row carries different text than what was translated: leave it alone
+  // rather than label an edited message with a stale translation.
+  if (contentToText(content).trim() !== decoration.content.trim()) return false;
 
-  message.content = `${content}${TRANSLATION_MARKER}${decoration.line}`;
+  message.content = [...content, ...buildDecorationNodes(decoration.line)];
+  return true;
+}
+
+/** Mutates every message row in a parsed `updateRows` payload. */
+export function decorateRows(
+  rows: unknown,
+  getDecoration: (messageId: string) => Decoration | undefined,
+): boolean {
+  if (!Array.isArray(rows)) return false;
+
+  let changed = false;
+  for (const row of rows) {
+    if (decorateRow(row, getDecoration)) changed = true;
+  }
+
+  return changed;
 }
 
 export function createRenderController(
@@ -77,24 +158,28 @@ export function createRenderController(
     start(): boolean {
       if (unpatch) return true;
 
-      const prototype = dependencies.rowManager?.prototype;
-      if (!prototype || typeof prototype.generate !== 'function') return false;
+      const target = dependencies.chatModule;
+      if (!target || typeof target.updateRows !== 'function') return false;
 
-      const before = prototype.generate;
+      const before = target.updateRows;
 
-      unpatch = dependencies.patchAfter(prototype, 'generate', (_args, result) => {
+      unpatch = dependencies.patchBefore(target, 'updateRows', (args) => {
+        // Never throw: this call renders the message list.
         try {
-          decorateRow(result, dependencies.getDecoration);
+          const raw = args[1];
+          if (typeof raw !== 'string') return;
+
+          const rows = JSON.parse(raw);
+          if (decorateRows(rows, dependencies.getDecoration)) {
+            args[1] = JSON.stringify(rows);
+          }
         } catch (error) {
-          // A throw here would break the message list; never let that happen.
           dependencies.onError(error);
         }
-
-        return result;
       });
 
-      // Confirm the patch took: a lazy proxy swallows defineProperty silently.
-      if (prototype.generate === before) {
+      // A lazy proxy swallows defineProperty silently; confirm the swap took.
+      if (target.updateRows === before) {
         unpatch();
         unpatch = undefined;
         return false;

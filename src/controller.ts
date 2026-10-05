@@ -76,6 +76,20 @@ export function escapeTranslation(text: string): string {
     .replace(/@/g, '@\u200B');
 }
 
+/**
+ * Collapses whitespace without escaping markdown.
+ *
+ * The render patch puts the line in its own text node, where backslashes would
+ * be shown literally; only the store-update fallback needs escaping. `@` is
+ * still neutralised so a translation can never become a live mention.
+ */
+export function plainLine(text: string): string {
+  return text
+    .replace(/\s*\r?\n+\s*/g, ' ')
+    .trim()
+    .replace(/@/g, '@\u200B');
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
@@ -153,7 +167,14 @@ export function createRealtimeController(
       const safeTranslation = escapeTranslation(translation.text);
       if (!safeTranslation) return;
 
-      applyTranslation(current, messageId, channelId, content, safeTranslation);
+      applyTranslation(
+        current,
+        messageId,
+        channelId,
+        content,
+        safeTranslation,
+        plainLine(translation.text),
+      );
     } finally {
       if (pending.get(messageId) === workGeneration) pending.delete(messageId);
     }
@@ -186,7 +207,14 @@ export function createRealtimeController(
     const current = dependencies.getMessage(channelId, messageId) ?? message;
     if (current?.content !== content) return;
 
-    applyTranslation(current, messageId, channelId, content, safeEnglish);
+    applyTranslation(
+      current,
+      messageId,
+      channelId,
+      content,
+      safeEnglish,
+      plainLine(record.english),
+    );
   }
 
   function applyTranslation(
@@ -195,13 +223,14 @@ export function createRealtimeController(
     channelId: string,
     originalContent: string,
     line: string,
+    rawLine?: string,
   ): void {
     // Preferred path: record the translation and let the render patch apply it.
     // Discord's store is left untouched, so nothing can overwrite the result.
     if (dependencies.decorations) {
       dependencies.decorations.set(messageId, {
         content: originalContent,
-        line: `English: ${line}`,
+        line: `English: ${rawLine ?? line}`,
       });
 
       modified.set(messageId, {
