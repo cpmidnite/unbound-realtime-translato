@@ -110,13 +110,13 @@ function normalizeLanguage(value) {
             });
         }
     };
-}function _array_like_to_array$2(arr, len) {
+}function _array_like_to_array$3(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
 function _array_without_holes$2(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$2(arr);
+    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
 }
 function asyncGeneratorStep$2(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -203,7 +203,7 @@ function _object_spread_props$1(target, source) {
     return target;
 }
 function _to_consumable_array$2(arr) {
-    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$2(arr) || _non_iterable_spread$2();
+    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$2();
 }
 function _ts_generator$2(thisArg, body) {
     var f, y, t, _ = {
@@ -304,13 +304,13 @@ function _ts_generator$2(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array$2(o, minLen) {
+function _unsupported_iterable_to_array$3(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
 }
 var TRANSLATION_MARKER = '\n-# ↳ English: ';
 function toPlainMessage(message) {
@@ -731,6 +731,221 @@ function maskTokens(input) {
     var text = maskTokens(trimmed).text;
     var withoutSentinels = text.replace(new RegExp("".concat(SENTINEL, "\\d+").concat(SENTINEL), 'g'), '');
     return /[A-Za-z\u00C0-\u02FF\u0370-\u1FFF]/.test(withoutSentinels);
+}function _array_like_to_array$2(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_with_holes(arr) {
+    if (Array.isArray(arr)) return arr;
+}
+function _iterable_to_array_limit(arr, i) {
+    var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"];
+    if (_i == null) return;
+    var _arr = [];
+    var _n = true;
+    var _d = false;
+    var _s, _e;
+    try {
+        for(_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true){
+            _arr.push(_s.value);
+            if (i && _arr.length === i) break;
+        }
+    } catch (err) {
+        _d = true;
+        _e = err;
+    } finally{
+        try {
+            if (!_n && _i["return"] != null) _i["return"]();
+        } finally{
+            if (_d) throw _e;
+        }
+    }
+    return _arr;
+}
+function _non_iterable_rest() {
+    throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _sliced_to_array(arr, i) {
+    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$2(arr, i) || _non_iterable_rest();
+}
+function _unsupported_iterable_to_array$2(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
+}
+/**
+ * Text-triggered configuration, handled inside the send patch.
+ *
+ * Slash commands depend on Discord's command registry resolving, which is not
+ * guaranteed across builds. This path only depends on the send interception
+ * that outgoing translation already relies on, so if translation works at all,
+ * these triggers work too.
+ */ var TRIGGER_PREFIX = '!tr';
+var SUPPORTED_LANGUAGES$1 = [
+    'es',
+    'en',
+    'pt',
+    'fr',
+    'de',
+    'it',
+    'nl',
+    'ru',
+    'ja',
+    'ko',
+    'zh',
+    'hi',
+    'ar',
+    'tr',
+    'pl',
+    'id',
+    'vi',
+    'th'
+];
+var ON_WORDS = [
+    'on',
+    'yes',
+    'true',
+    '1',
+    'enable',
+    'enabled'
+];
+var OFF_WORDS = [
+    'off',
+    'no',
+    'false',
+    '0',
+    'disable',
+    'disabled'
+];
+function parseFlag(word) {
+    if (!word) return undefined;
+    var value = word.toLocaleLowerCase();
+    if (ON_WORDS.includes(value)) return true;
+    if (OFF_WORDS.includes(value)) return false;
+    return undefined;
+}
+function describe(config, channelId) {
+    var current = config.for(channelId);
+    return [
+        '**Translation — this chat**',
+        "> Receive: ".concat(current.incoming ? 'on (→ English)' : 'off'),
+        "> Send: ".concat(current.outgoing ? "on (→ ".concat(current.outgoingLanguage.toUpperCase(), ")") : 'off'),
+        "> Show my English: ".concat(current.showOwnEnglish ? 'on' : 'off')
+    ].join('\n');
+}
+function help() {
+    return [
+        '**Translation controls** (type in any chat)',
+        '`!tr` — show settings for this chat',
+        '`!tr on` — translate both directions here',
+        '`!tr off` — turn everything off here',
+        '`!tr recv on` / `!tr recv off` — messages you receive',
+        '`!tr send on` / `!tr send off` — messages you send',
+        '`!tr lang es` — language to send in',
+        '`!tr eng off` — hide your English under your own messages',
+        '',
+        'These commands are never sent to the chat.'
+    ].join('\n');
+}
+/**
+ * Interprets a trigger message.
+ *
+ * @returns `handled: false` for anything that is not a trigger, in which case
+ * the message must be sent normally.
+ */ function handleTrigger(config, channelId, content) {
+    var trimmed = content.trim();
+    var lower = trimmed.toLocaleLowerCase();
+    if (lower !== TRIGGER_PREFIX && !lower.startsWith("".concat(TRIGGER_PREFIX, " "))) {
+        return {
+            handled: false
+        };
+    }
+    var parts = trimmed.slice(TRIGGER_PREFIX.length).trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+        return {
+            handled: true,
+            reply: "".concat(describe(config, channelId), "\n\n`!tr help` for options.")
+        };
+    }
+    var _parts = _sliced_to_array(parts, 2), rawCommand = _parts[0], rawValue = _parts[1];
+    var command = rawCommand.toLocaleLowerCase();
+    if (command === 'help' || command === '?') {
+        return {
+            handled: true,
+            reply: help()
+        };
+    }
+    if (command === 'status') {
+        return {
+            handled: true,
+            reply: describe(config, channelId)
+        };
+    }
+    // `!tr on` / `!tr off` set both directions at once.
+    var bothFlag = parseFlag(command);
+    if (bothFlag !== undefined) {
+        config.setIncoming(channelId, bothFlag);
+        config.setOutgoing(channelId, bothFlag);
+        return {
+            handled: true,
+            reply: "Translation **".concat(bothFlag ? 'on' : 'off', "** for this chat.\n\n") + describe(config, channelId)
+        };
+    }
+    if (command === 'recv' || command === 'receive' || command === 'in') {
+        var _parseFlag;
+        var flag = (_parseFlag = parseFlag(rawValue)) !== null && _parseFlag !== void 0 ? _parseFlag : !config.for(channelId).incoming;
+        config.setIncoming(channelId, flag);
+        return {
+            handled: true,
+            reply: "Receive → **".concat(flag ? 'on' : 'off', "**.\n\n").concat(describe(config, channelId))
+        };
+    }
+    if (command === 'send' || command === 'out') {
+        var _parseFlag1;
+        var flag1 = (_parseFlag1 = parseFlag(rawValue)) !== null && _parseFlag1 !== void 0 ? _parseFlag1 : !config.for(channelId).outgoing;
+        config.setOutgoing(channelId, flag1);
+        return {
+            handled: true,
+            reply: "Send → **".concat(flag1 ? 'on' : 'off', "**.\n\n").concat(describe(config, channelId))
+        };
+    }
+    if (command === 'eng' || command === 'english') {
+        var _parseFlag2;
+        var flag2 = (_parseFlag2 = parseFlag(rawValue)) !== null && _parseFlag2 !== void 0 ? _parseFlag2 : !config.for(channelId).showOwnEnglish;
+        config.setShowOwnEnglish(channelId, flag2);
+        return {
+            handled: true,
+            reply: "Show my English → **".concat(flag2 ? 'on' : 'off', "**.\n\n").concat(describe(config, channelId))
+        };
+    }
+    if (command === 'lang' || command === 'language') {
+        if (!rawValue) {
+            return {
+                handled: true,
+                reply: "Current send language: **".concat(config.for(channelId).outgoingLanguage.toUpperCase(), "**") + "\n> Set one with `!tr lang es`."
+            };
+        }
+        var language = rawValue.toLocaleLowerCase();
+        if (!SUPPORTED_LANGUAGES$1.includes(language.split('-')[0])) {
+            return {
+                handled: true,
+                reply: "**".concat(rawValue, "** is not a recognised language code.\n") + "> Try: ".concat(SUPPORTED_LANGUAGES$1.slice(0, 8).join(', '))
+            };
+        }
+        config.setOutgoingLanguage(channelId, language);
+        return {
+            handled: true,
+            reply: "Send language → **".concat(language.toUpperCase(), "**.\n\n").concat(describe(config, channelId))
+        };
+    }
+    return {
+        handled: true,
+        reply: "Unknown option `".concat(rawCommand, "`.\n\n").concat(help())
+    };
 }function _array_like_to_array$1(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
@@ -1007,9 +1222,18 @@ function generateNonce() {
                 var channelId = typeof args[0] === 'string' ? args[0] : null;
                 var message = args[1];
                 if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$1(args));
+                var english = contentOf(message);
+                // Configuration triggers are swallowed: never sent, never translated.
+                // Checked before the per-chat gate so a chat can be switched on from
+                // inside itself.
+                var trigger = handleTrigger(dependencies.config, channelId, english);
+                if (trigger.handled) {
+                    var _dependencies_onReply;
+                    if (trigger.reply) (_dependencies_onReply = dependencies.onReply) === null || _dependencies_onReply === void 0 ? void 0 : _dependencies_onReply.call(dependencies, channelId, trigger.reply);
+                    return undefined;
+                }
                 var config = dependencies.config.for(channelId);
                 if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$1(args));
-                var english = contentOf(message);
                 if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$1(args));
                 var language = config.outgoingLanguage;
                 // The send becomes asynchronous: translate first, then hand the
@@ -1362,6 +1586,10 @@ function formatStatus(config, channelId) {
     return {
         start: function start() {
             if (unpatch) return;
+            var target = dependencies.commands;
+            if (!target || typeof target.getBuiltInCommands !== 'function') {
+                throw new Error('Discord command registry is not available.');
+            }
             idBase = nextCommandId();
             registered = buildCommands();
             unpatch = dependencies.patchAfter(dependencies.commands, 'getBuiltInCommands', function(args, result) {
@@ -1845,7 +2073,8 @@ var index = {
             onError: function onError(error) {
                 return console.warn('[Realtime Translator] Outgoing failed:', error);
             },
-            onFallback: warn
+            onFallback: warn,
+            onReply: reply
         });
         controller = createRealtimeController({
             dispatcher: window.unbound.metro.common.Dispatcher,
@@ -1883,8 +2112,16 @@ var index = {
             reply: reply
         });
         outgoing.start();
-        commands.start();
         controller.start();
+        // Slash commands are a convenience: Discord's command registry does not
+        // resolve on every build, and the patcher throws when the target is not a
+        // function. Never let that take translation down with it.
+        try {
+            commands.start();
+        } catch (error) {
+            commands = undefined;
+            console.warn('[Realtime Translator] Slash commands unavailable; use !tr instead.', error);
+        }
     },
     stop: function stop() {
         controller === null || controller === void 0 ? void 0 : controller.stop();

@@ -33,6 +33,7 @@ function harness(options: {
   const sent: any[] = [];
   const errors: unknown[] = [];
   const fallbacks: string[] = [];
+  const commandReplies: Array<{ channelId: string; content: string }> = [];
   const translateCalls: Array<{ text: string; source: string; target: string }> = [];
 
   const messages = {
@@ -62,6 +63,7 @@ function harness(options: {
     },
     onError: (error) => errors.push(error),
     onFallback: (reason) => fallbacks.push(reason),
+    onReply: (channelId, content) => commandReplies.push({ channelId, content }),
   });
 
   return {
@@ -70,6 +72,7 @@ function harness(options: {
     sent,
     errors,
     fallbacks,
+    commandReplies,
     translateCalls,
     get unpatched() {
       return unpatched;
@@ -256,5 +259,74 @@ describe('outgoing translation', () => {
 
     expect(h.unpatched).toBe(true);
     expect(h.controller.pendingNonces()).toBe(0);
+  });
+});
+
+describe('text triggers through the send patch', () => {
+  test('a trigger is never sent to the chat', async () => {
+    const h = harness();
+    h.controller.start();
+
+    await h.send('c1', { content: '!tr on' });
+
+    expect(h.sent).toHaveLength(0);
+    expect(h.translateCalls).toHaveLength(0);
+    expect(h.config.for('c1')).toMatchObject({ incoming: true, outgoing: true });
+    expect(h.commandReplies[0].channelId).toBe('c1');
+  });
+
+  test('works in a chat that has translation switched off', async () => {
+    const h = harness();
+    h.controller.start();
+
+    // The gate must not hide the trigger, or a chat could never be enabled.
+    await h.send('c1', { content: '!tr send on' });
+
+    expect(h.sent).toHaveLength(0);
+    expect(h.config.for('c1').outgoing).toBe(true);
+  });
+
+  test('a trigger is not translated even when sending is on', async () => {
+    const h = harness();
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    await h.send('c1', { content: '!tr status' });
+
+    expect(h.translateCalls).toHaveLength(0);
+    expect(h.sent).toHaveLength(0);
+  });
+
+  test('ordinary messages still send normally', async () => {
+    const h = harness();
+    h.controller.start();
+
+    await h.send('c1', { content: 'not a trigger' });
+
+    expect(h.sent).toHaveLength(1);
+    expect(h.commandReplies).toHaveLength(0);
+  });
+
+  test('a message merely mentioning the trigger word is sent', async () => {
+    const h = harness();
+    h.controller.start();
+
+    await h.send('c1', { content: 'use !trick instead' });
+
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0].message.content).toBe('use !trick instead');
+  });
+
+  test('enabling then sending translates the next real message', async () => {
+    const h = harness({
+      translate: async () => ({ text: 'hola', detectedLanguage: 'en' }),
+    });
+    h.controller.start();
+
+    await h.send('c1', { content: '!tr send on' });
+    await h.send('c1', { content: 'hello' });
+
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0].message.content).toBe('hola');
   });
 });

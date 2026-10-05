@@ -1,4 +1,5 @@
 import { isTranslatableOutgoing, maskTokens, restoreTokens } from './tokens';
+import { handleTrigger } from './text-command';
 import type { ChatConfigController } from './config';
 import type { Translation } from './translation';
 
@@ -26,6 +27,8 @@ interface OutgoingDependencies {
   onError(error: unknown): void;
   /** Surfaces a short warning to the user when a send falls back to English. */
   onFallback?(reason: string): void;
+  /** Shows local-only feedback for a configuration trigger. */
+  onReply?(channelId: string, content: string): void;
 }
 
 export interface OutgoingController {
@@ -119,10 +122,20 @@ export function createOutgoingController(
 
           if (!channelId || !message) return ctx.original(...args);
 
+          const english = contentOf(message);
+
+          // Configuration triggers are swallowed: never sent, never translated.
+          // Checked before the per-chat gate so a chat can be switched on from
+          // inside itself.
+          const trigger = handleTrigger(dependencies.config, channelId, english);
+          if (trigger.handled) {
+            if (trigger.reply) dependencies.onReply?.(channelId, trigger.reply);
+            return undefined;
+          }
+
           const config = dependencies.config.for(channelId);
           if (!config.outgoing) return ctx.original(...args);
 
-          const english = contentOf(message);
           if (!isTranslatableOutgoing(english)) return ctx.original(...args);
 
           const language = config.outgoingLanguage;

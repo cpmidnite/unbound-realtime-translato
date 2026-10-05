@@ -57,6 +57,7 @@ export default {
       ),
       onError: (error) => console.warn('[Realtime Translator] Outgoing failed:', error),
       onFallback: warn,
+      onReply: reply,
     });
 
     controller = createRealtimeController({
@@ -87,8 +88,20 @@ export default {
     });
 
     outgoing.start();
-    commands.start();
     controller.start();
+
+    // Slash commands are a convenience: Discord's command registry does not
+    // resolve on every build, and the patcher throws when the target is not a
+    // function. Never let that take translation down with it.
+    try {
+      commands.start();
+    } catch (error) {
+      commands = undefined;
+      console.warn(
+        '[Realtime Translator] Slash commands unavailable; use !tr instead.',
+        error,
+      );
+    }
   },
 
   stop(): void {

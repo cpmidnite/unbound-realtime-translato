@@ -275,6 +275,11 @@ export function createCommandController(
     start(): void {
       if (unpatch) return;
 
+      const target = dependencies.commands as any;
+      if (!target || typeof target.getBuiltInCommands !== 'function') {
+        throw new Error('Discord command registry is not available.');
+      }
+
       idBase = nextCommandId();
       registered = buildCommands();
 
