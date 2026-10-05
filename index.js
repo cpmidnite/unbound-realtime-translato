@@ -340,12 +340,21 @@ function createRealtimeController(dependencies) {
         'LOCAL_MESSAGES_LOADED',
         'LOAD_MESSAGES_AROUND_SUCCESS'
     ];
+    /**
+   * Events that replace a message already in the store with a server copy,
+   * discarding our local decoration. Each one must trigger re-application.
+   */ var reconcileActionTypes = [
+        'MESSAGE_SEND_SUCCESS',
+        'MESSAGE_UPDATE',
+        'MESSAGE_SEND_FAILED'
+    ];
     var modified = new Map();
     var pending = new Map();
     var historyQueue = [];
     var active = false;
     var generation = 0;
     var processingHistoryGeneration;
+    var reconciling = false;
     function translateMessage(message, workGeneration) {
         return _async_to_generator$2(function() {
             var _message_author, _dependencies_config, _dependencies_users_getCurrentUser, messageId, channelId, content, config, currentUserId, isOwnMessage, _dependencies_getMessage, translation, current, safeTranslation;
@@ -460,6 +469,86 @@ function createRealtimeController(dependencies) {
             fallback: updated
         });
     }
+    /**
+   * Re-applies a decoration that Discord overwrote.
+   *
+   * After a send completes, Discord replaces the optimistic message with the
+   * server's copy, which has none of our added text. The same happens when a
+   * message is edited or re-fetched. Without this, the English line appears for
+   * a moment and then vanishes.
+   */ function reconcile(messageId) {
+        var _plain_channel_id;
+        if (!active) return;
+        var entry = modified.get(messageId);
+        if (!entry) return;
+        var current = dependencies.getMessage(entry.channelId, messageId);
+        if (!current) return;
+        var content = typeof current.content === 'string' ? current.content : '';
+        // Already decorated: nothing to do.
+        if (content.includes(TRANSLATION_MARKER)) return;
+        // The message was genuinely edited to something else, so the stored
+        // translation no longer describes it. Drop it rather than mislabel.
+        if (content !== entry.originalContent) {
+            modified.delete(messageId);
+            return;
+        }
+        var plain = toPlainMessage(current);
+        var updated = _object_spread_props$1(_object_spread$1({}, plain), {
+            id: messageId,
+            channel_id: (_plain_channel_id = plain.channel_id) !== null && _plain_channel_id !== void 0 ? _plain_channel_id : entry.channelId,
+            content: entry.decoratedContent
+        });
+        reconciling = true;
+        try {
+            dependencies.dispatcher.dispatch({
+                type: 'MESSAGE_UPDATE',
+                message: updated,
+                log_edit: false
+            });
+        } finally{
+            reconciling = false;
+        }
+        modified.set(messageId, _object_spread_props$1(_object_spread$1({}, entry), {
+            fallback: updated
+        }));
+    }
+    var onReconcile = function onReconcile(event) {
+        var _event_message;
+        // Our own re-application dispatches MESSAGE_UPDATE; ignore that.
+        if (!active || reconciling) return;
+        var messageId = typeof (event === null || event === void 0 ? void 0 : (_event_message = event.message) === null || _event_message === void 0 ? void 0 : _event_message.id) === 'string' ? event.message.id : typeof (event === null || event === void 0 ? void 0 : event.messageId) === 'string' ? event.messageId : null;
+        if (messageId) {
+            // Let Discord's own stores settle before re-reading and re-applying.
+            setTimeout(function() {
+                return reconcile(messageId);
+            }, 0);
+            return;
+        }
+        var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+        try {
+            var _loop = function() {
+                var id = _step.value;
+                setTimeout(function() {
+                    return reconcile(id);
+                }, 0);
+            };
+            // Some payloads omit the id; re-check everything we have decorated.
+            for(var _iterator = _to_consumable_array$4(modified.keys())[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true)_loop();
+        } catch (err) {
+            _didIteratorError = true;
+            _iteratorError = err;
+        } finally{
+            try {
+                if (!_iteratorNormalCompletion && _iterator.return != null) {
+                    _iterator.return();
+                }
+            } finally{
+                if (_didIteratorError) {
+                    throw _iteratorError;
+                }
+            }
+        }
+    };
     var onMessageCreate = function onMessageCreate(event) {
         var workGeneration = generation;
         void translateMessage(event === null || event === void 0 ? void 0 : event.message, workGeneration).catch(function(error) {
@@ -612,6 +701,26 @@ function createRealtimeController(dependencies) {
                     }
                 }
             }
+            var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+            try {
+                for(var _iterator1 = reconcileActionTypes[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+                    var type1 = _step1.value;
+                    dependencies.dispatcher.subscribe(type1, onReconcile);
+                }
+            } catch (err) {
+                _didIteratorError1 = true;
+                _iteratorError1 = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                        _iterator1.return();
+                    }
+                } finally{
+                    if (_didIteratorError1) {
+                        throw _iteratorError1;
+                    }
+                }
+            }
             enqueueHistory((_dependencies_getLoadedMessages = dependencies.getLoadedMessages) === null || _dependencies_getLoadedMessages === void 0 ? void 0 : _dependencies_getLoadedMessages.call(dependencies));
         },
         stop: function stop() {
@@ -635,6 +744,26 @@ function createRealtimeController(dependencies) {
                 } finally{
                     if (_didIteratorError) {
                         throw _iteratorError;
+                    }
+                }
+            }
+            var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+            try {
+                for(var _iterator1 = reconcileActionTypes[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+                    var type1 = _step1.value;
+                    dependencies.dispatcher.unsubscribe(type1, onReconcile);
+                }
+            } catch (err) {
+                _didIteratorError1 = true;
+                _iteratorError1 = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                        _iterator1.return();
+                    }
+                } finally{
+                    if (_didIteratorError1) {
+                        throw _iteratorError1;
                     }
                 }
             }

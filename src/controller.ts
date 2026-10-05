@@ -77,12 +77,24 @@ export function createRealtimeController(
     'LOCAL_MESSAGES_LOADED',
     'LOAD_MESSAGES_AROUND_SUCCESS',
   ] as const;
+
+  /**
+   * Events that replace a message already in the store with a server copy,
+   * discarding our local decoration. Each one must trigger re-application.
+   */
+  const reconcileActionTypes = [
+    'MESSAGE_SEND_SUCCESS',
+    'MESSAGE_UPDATE',
+    'MESSAGE_SEND_FAILED',
+  ] as const;
+
   const modified = new Map<string, ModifiedMessage>();
   const pending = new Map<string, number>();
   const historyQueue: any[] = [];
   let active = false;
   let generation = 0;
   let processingHistoryGeneration: number | undefined;
+  let reconciling = false;
 
   async function translateMessage(message: any, workGeneration: number): Promise<void> {
     const messageId = typeof message?.id === 'string' ? message.id : null;
@@ -194,6 +206,77 @@ export function createRealtimeController(
     });
   }
 
+  /**
+   * Re-applies a decoration that Discord overwrote.
+   *
+   * After a send completes, Discord replaces the optimistic message with the
+   * server's copy, which has none of our added text. The same happens when a
+   * message is edited or re-fetched. Without this, the English line appears for
+   * a moment and then vanishes.
+   */
+  function reconcile(messageId: string): void {
+    if (!active) return;
+
+    const entry = modified.get(messageId);
+    if (!entry) return;
+
+    const current = dependencies.getMessage(entry.channelId, messageId);
+    if (!current) return;
+
+    const content = typeof current.content === 'string' ? current.content : '';
+
+    // Already decorated: nothing to do.
+    if (content.includes(TRANSLATION_MARKER)) return;
+
+    // The message was genuinely edited to something else, so the stored
+    // translation no longer describes it. Drop it rather than mislabel.
+    if (content !== entry.originalContent) {
+      modified.delete(messageId);
+      return;
+    }
+
+    const plain = toPlainMessage(current);
+    const updated = {
+      ...plain,
+      id: messageId,
+      channel_id: plain.channel_id ?? entry.channelId,
+      content: entry.decoratedContent,
+    };
+
+    reconciling = true;
+    try {
+      dependencies.dispatcher.dispatch({
+        type: 'MESSAGE_UPDATE',
+        message: updated,
+        log_edit: false,
+      });
+    } finally {
+      reconciling = false;
+    }
+
+    modified.set(messageId, { ...entry, fallback: updated });
+  }
+
+  const onReconcile = (event: any): void => {
+    // Our own re-application dispatches MESSAGE_UPDATE; ignore that.
+    if (!active || reconciling) return;
+
+    const messageId = typeof event?.message?.id === 'string'
+      ? event.message.id
+      : (typeof event?.messageId === 'string' ? event.messageId : null);
+
+    if (messageId) {
+      // Let Discord's own stores settle before re-reading and re-applying.
+      setTimeout(() => reconcile(messageId), 0);
+      return;
+    }
+
+    // Some payloads omit the id; re-check everything we have decorated.
+    for (const id of [...modified.keys()]) {
+      setTimeout(() => reconcile(id), 0);
+    }
+  };
+
   const onMessageCreate = (event: any): void => {
     const workGeneration = generation;
     void translateMessage(event?.message, workGeneration).catch((error) => {
@@ -274,6 +357,9 @@ export function createRealtimeController(
       for (const type of historyActionTypes) {
         dependencies.dispatcher.subscribe(type, onHistoryLoaded);
       }
+      for (const type of reconcileActionTypes) {
+        dependencies.dispatcher.subscribe(type, onReconcile);
+      }
       enqueueHistory(dependencies.getLoadedMessages?.());
     },
 
@@ -283,6 +369,9 @@ export function createRealtimeController(
       dependencies.dispatcher.unsubscribe('MESSAGE_CREATE', onMessageCreate);
       for (const type of historyActionTypes) {
         dependencies.dispatcher.unsubscribe(type, onHistoryLoaded);
+      }
+      for (const type of reconcileActionTypes) {
+        dependencies.dispatcher.unsubscribe(type, onReconcile);
       }
       historyQueue.length = 0;
       dependencies.abortTranslations();

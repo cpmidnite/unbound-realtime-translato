@@ -279,6 +279,9 @@ describe('realtime message controller', () => {
       'LOAD_MESSAGES_SUCCESS',
       'LOCAL_MESSAGES_LOADED',
       'LOAD_MESSAGES_AROUND_SUCCESS',
+      'MESSAGE_SEND_SUCCESS',
+      'MESSAGE_UPDATE',
+      'MESSAGE_SEND_FAILED',
     ]));
     expect(h.dispatched.at(-1).message.content).toBe('Hola');
   });

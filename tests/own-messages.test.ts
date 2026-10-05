@@ -89,6 +89,13 @@ function harness(options: {
       messages.set(message.id, message);
       handlers.get('MESSAGE_CREATE')?.({ type: 'MESSAGE_CREATE', message });
     },
+    /** Simulates Discord replacing the stored copy, losing our decoration. */
+    replaceStored(messageId: string, message: any) {
+      messages.set(messageId, message);
+    },
+    emitAction(type: string, event: Record<string, any>) {
+      handlers.get(type)?.({ ...event, type });
+    },
     flush: () => new Promise((resolve) => setTimeout(resolve, 0)),
   };
 }
@@ -247,5 +254,160 @@ describe('own-message English', () => {
     h.controller.stop();
 
     expect(h.dispatched.at(-1).message.content).toBe('hasta luego');
+  });
+});
+
+describe('surviving Discord overwriting the message', () => {
+  function withRecord() {
+    return harness({
+      outgoingRecords: {
+        'nonce-1': {
+          channelId: 'c1',
+          english: 'I will send it tomorrow',
+          sent: 'lo enviaré mañana',
+          language: 'es',
+        },
+      },
+    });
+  }
+
+  test('re-applies the English line after MESSAGE_SEND_SUCCESS', async () => {
+    const h = withRecord();
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    h.emit({
+      id: 'm1',
+      channel_id: 'c1',
+      nonce: 'nonce-1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    await h.flush();
+
+    expect(h.dispatched.at(-1).message.content).toContain('English: I will send it tomorrow');
+
+    // Discord replaces the optimistic message with the server copy, which has
+    // no decoration. This is what made the line vanish.
+    h.replaceStored('m1', {
+      id: 'm1',
+      channel_id: 'c1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    h.emitAction('MESSAGE_SEND_SUCCESS', { message: { id: 'm1', channel_id: 'c1' } });
+    await h.flush();
+
+    expect(h.dispatched.at(-1).message.content).toBe(
+      'lo enviaré mañana\n-# ↳ English: I will send it tomorrow',
+    );
+  });
+
+  test('re-applies after a bare MESSAGE_UPDATE that strips the line', async () => {
+    const h = withRecord();
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    h.emit({
+      id: 'm1',
+      channel_id: 'c1',
+      nonce: 'nonce-1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    await h.flush();
+
+    h.replaceStored('m1', {
+      id: 'm1',
+      channel_id: 'c1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    h.emitAction('MESSAGE_UPDATE', { message: { id: 'm1', channel_id: 'c1' } });
+    await h.flush();
+
+    expect(h.dispatched.at(-1).message.content).toContain('English:');
+  });
+
+  test('does not loop: re-applying does not trigger another re-application', async () => {
+    const h = withRecord();
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    h.emit({
+      id: 'm1',
+      channel_id: 'c1',
+      nonce: 'nonce-1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    await h.flush();
+
+    h.replaceStored('m1', {
+      id: 'm1',
+      channel_id: 'c1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+
+    const before = h.dispatched.length;
+    h.emitAction('MESSAGE_SEND_SUCCESS', { message: { id: 'm1', channel_id: 'c1' } });
+    await h.flush();
+    await h.flush();
+
+    // Exactly one re-application, not a cascade.
+    expect(h.dispatched.length).toBe(before + 1);
+  });
+
+  test('leaves an already-decorated message alone', async () => {
+    const h = withRecord();
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    h.emit({
+      id: 'm1',
+      channel_id: 'c1',
+      nonce: 'nonce-1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    await h.flush();
+
+    const before = h.dispatched.length;
+
+    // Store still holds the decorated copy.
+    h.emitAction('MESSAGE_SEND_SUCCESS', { message: { id: 'm1', channel_id: 'c1' } });
+    await h.flush();
+
+    expect(h.dispatched.length).toBe(before);
+  });
+
+  test('drops the decoration when the message was genuinely edited', async () => {
+    const h = withRecord();
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    h.emit({
+      id: 'm1',
+      channel_id: 'c1',
+      nonce: 'nonce-1',
+      content: 'lo enviaré mañana',
+      author: { id: 'me' },
+    });
+    await h.flush();
+
+    // The user edited it to different text; the old translation no longer fits.
+    h.replaceStored('m1', {
+      id: 'm1',
+      channel_id: 'c1',
+      content: 'algo completamente distinto',
+      author: { id: 'me' },
+    });
+
+    const before = h.dispatched.length;
+    h.emitAction('MESSAGE_UPDATE', { message: { id: 'm1', channel_id: 'c1' } });
+    await h.flush();
+
+    expect(h.dispatched.length).toBe(before);
   });
 });
