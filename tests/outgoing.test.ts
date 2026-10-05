@@ -310,6 +310,112 @@ describe('text triggers through the send patch', () => {
     expect(controller.isActive()).toBe(false);
   });
 
+  test('a trigger returns a thenable, never null', async () => {
+    const h = harness();
+    h.controller.start();
+
+    const result = h.send('c1', { content: '!tr on' });
+
+    // The patcher coerces `undefined` to `null`, and Discord chains .then()
+    // on the result, so returning nothing crashes the send path.
+    expect(result).not.toBeNull();
+    expect(result).not.toBeUndefined();
+    expect(typeof (result as any)?.then).toBe('function');
+
+    await expect(result).resolves.toMatchObject({ ok: true, cancelled: true });
+  });
+
+  test('survives a reply handler that throws', async () => {
+    const sent: any[] = [];
+    const messages = {
+      sendMessage(channelId: string, message: any) {
+        sent.push({ channelId, message });
+        return Promise.resolve({ ok: true });
+      },
+    };
+    const config = createChatConfig(memoryStore());
+    const errors: unknown[] = [];
+    let patched: ((ctx: any) => any) | undefined;
+
+    const controller = createOutgoingController({
+      messages,
+      config,
+      translate: async () => null,
+      patchInstead: (parent, method, callback) => {
+        patched = callback;
+        const original = (parent as any)[method];
+        (parent as any)[method] = (...args: any[]) => callback({ args, original });
+        return () => { (parent as any)[method] = original; };
+      },
+      onError: (error) => errors.push(error),
+      onReply: () => {
+        throw new Error('reply blew up');
+      },
+    });
+
+    controller.start();
+
+    const result = patched!({
+      args: ['c1', { content: '!tr on' }],
+      original: () => Promise.resolve({ ok: true }),
+    });
+
+    // The setting still applies, the throw is captured, nothing is sent.
+    await expect(result).resolves.toMatchObject({ cancelled: true });
+    expect(config.for('c1').outgoing).toBe(true);
+    expect(errors).toHaveLength(1);
+    expect(sent).toHaveLength(0);
+  });
+
+  test('sends normally when the trigger parser throws', async () => {
+    const sent: any[] = [];
+    const messages = {
+      sendMessage(channelId: string, message: any) {
+        sent.push({ channelId, message });
+        return Promise.resolve({ ok: true });
+      },
+    };
+    const errors: unknown[] = [];
+    let patched: ((ctx: any) => any) | undefined;
+
+    // A config that throws on read forces the parser to fail.
+    const hostileConfig = {
+      for: () => { throw new Error('store unavailable'); },
+      setIncoming: () => {},
+      setOutgoing: () => {},
+      setOutgoingLanguage: () => {},
+      setShowOwnEnglish: () => {},
+      enabledChannels: () => [],
+      reset: () => {},
+    };
+
+    const controller = createOutgoingController({
+      messages,
+      config: hostileConfig as any,
+      translate: async () => null,
+      patchInstead: (parent, method, callback) => {
+        patched = callback;
+        const original = (parent as any)[method];
+        (parent as any)[method] = (...args: any[]) => callback({ args, original });
+        return () => { (parent as any)[method] = original; };
+      },
+      onError: (error) => errors.push(error),
+    });
+
+    controller.start();
+
+    let delivered = false;
+    const result = patched!({
+      args: ['c1', { content: 'hello there' }],
+      original: () => { delivered = true; return Promise.resolve({ ok: true }); },
+    });
+
+    await result;
+
+    expect(delivered).toBe(true);
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
   test('a trigger is never sent to the chat', async () => {
     const h = harness();
     h.controller.start();

@@ -1143,6 +1143,17 @@ function _unsupported_iterable_to_array$3(o, minLen) {
     if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
 }
 var MAX_TRACKED_MESSAGES = 500;
+/**
+ * Stand-in result for a send we cancelled.
+ *
+ * Shaped like a successful-but-empty API response so Discord's call site can
+ * inspect it without throwing.
+ */ var CANCELLED_SEND = Object.freeze({
+    ok: true,
+    status: 200,
+    body: null,
+    cancelled: true
+});
 function contentOf(message) {
     return typeof (message === null || message === void 0 ? void 0 : message.content) === 'string' ? message.content : '';
 }
@@ -1220,109 +1231,134 @@ function generateNonce() {
             active = true;
             var before = (_dependencies_messages = dependencies.messages) === null || _dependencies_messages === void 0 ? void 0 : _dependencies_messages.sendMessage;
             unpatch = dependencies.patchInstead(dependencies.messages, 'sendMessage', function(ctx) {
-                var _ctx, _ctx1, _ctx2;
                 var args = ctx.args;
-                var channelId = typeof args[0] === 'string' ? args[0] : null;
-                var message = args[1];
-                if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args));
-                var english = contentOf(message);
-                // Configuration triggers are swallowed: never sent, never translated.
-                // Checked before the per-chat gate so a chat can be switched on from
-                // inside itself.
-                var trigger = handleTrigger(dependencies.config, channelId, english);
-                if (trigger.handled) {
-                    var _dependencies_onReply;
-                    if (trigger.reply) (_dependencies_onReply = dependencies.onReply) === null || _dependencies_onReply === void 0 ? void 0 : _dependencies_onReply.call(dependencies, channelId, trigger.reply);
-                    return undefined;
+                // The entire callback is guarded: this runs inside Discord's send
+                // path, so an exception here crashes sending (or the app).
+                try {
+                    var _ctx, _ctx1, _ctx2;
+                    var channelId = typeof args[0] === 'string' ? args[0] : null;
+                    var message = args[1];
+                    if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args));
+                    var english = contentOf(message);
+                    // Configuration triggers are swallowed: never sent, never
+                    // translated. Checked before the per-chat gate so a chat can be
+                    // switched on from inside itself.
+                    var trigger;
+                    try {
+                        trigger = handleTrigger(dependencies.config, channelId, english);
+                    } catch (error) {
+                        dependencies.onError(error);
+                        trigger = {
+                            handled: false
+                        };
+                    }
+                    if (trigger.handled) {
+                        try {
+                            var _dependencies_onReply;
+                            if (trigger.reply) (_dependencies_onReply = dependencies.onReply) === null || _dependencies_onReply === void 0 ? void 0 : _dependencies_onReply.call(dependencies, channelId, trigger.reply);
+                        } catch (error) {
+                            dependencies.onError(error);
+                        }
+                        // Must resolve to a thenable: Discord chains on sendMessage's
+                        // result, and the patcher turns a bare `undefined` into `null`,
+                        // which crashes the send path with "null is not an object".
+                        return Promise.resolve(CANCELLED_SEND);
+                    }
+                    var config = dependencies.config.for(channelId);
+                    if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(args));
+                    if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$3(args));
+                    var language = config.outgoingLanguage;
+                    // The send becomes asynchronous: translate first, then hand the
+                    // rewritten message to Discord's original implementation.
+                    return function() {
+                        return _async_to_generator$1(function() {
+                            var _ctx, _nonceOf, sent, translated, error, _dependencies_onFallback, nonce, outgoing, record, nextArgs, _ctx1, error1;
+                            return _ts_generator$1(this, function(_state) {
+                                switch(_state.label){
+                                    case 0:
+                                        sent = english;
+                                        _state.label = 1;
+                                    case 1:
+                                        _state.trys.push([
+                                            1,
+                                            3,
+                                            ,
+                                            4
+                                        ]);
+                                        return [
+                                            4,
+                                            translateOutgoing(channelId, english, language)
+                                        ];
+                                    case 2:
+                                        translated = _state.sent();
+                                        if (translated) sent = translated;
+                                        return [
+                                            3,
+                                            4
+                                        ];
+                                    case 3:
+                                        error = _state.sent();
+                                        dependencies.onError(error);
+                                        (_dependencies_onFallback = dependencies.onFallback) === null || _dependencies_onFallback === void 0 ? void 0 : _dependencies_onFallback.call(dependencies, 'Translation failed; sent English.');
+                                        return [
+                                            3,
+                                            4
+                                        ];
+                                    case 4:
+                                        if (sent === english) return [
+                                            2,
+                                            (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args))
+                                        ];
+                                        nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
+                                        outgoing = _object_spread_props(_object_spread({}, message), {
+                                            content: sent,
+                                            nonce: nonce
+                                        });
+                                        record = {
+                                            channelId: channelId,
+                                            english: english,
+                                            sent: sent,
+                                            language: language
+                                        };
+                                        pendingByNonce.set(nonce, record);
+                                        nextArgs = _to_consumable_array$3(args);
+                                        nextArgs[1] = outgoing;
+                                        _state.label = 5;
+                                    case 5:
+                                        _state.trys.push([
+                                            5,
+                                            7,
+                                            ,
+                                            8
+                                        ]);
+                                        return [
+                                            4,
+                                            (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(nextArgs))
+                                        ];
+                                    case 6:
+                                        return [
+                                            2,
+                                            _state.sent()
+                                        ];
+                                    case 7:
+                                        error1 = _state.sent();
+                                        pendingByNonce.delete(nonce);
+                                        throw error1;
+                                    case 8:
+                                        return [
+                                            2
+                                        ];
+                                }
+                            });
+                        })();
+                    }();
+                } catch (error) {
+                    var _ctx3;
+                    // Anything unexpected: send the message untouched rather than
+                    // breaking Discord.
+                    dependencies.onError(error);
+                    return (_ctx3 = ctx).original.apply(_ctx3, _to_consumable_array$3(args));
                 }
-                var config = dependencies.config.for(channelId);
-                if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(args));
-                if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$3(args));
-                var language = config.outgoingLanguage;
-                // The send becomes asynchronous: translate first, then hand the
-                // rewritten message to Discord's original implementation.
-                return function() {
-                    return _async_to_generator$1(function() {
-                        var _ctx, _nonceOf, sent, translated, error, _dependencies_onFallback, nonce, outgoing, record, nextArgs, _ctx1, error1;
-                        return _ts_generator$1(this, function(_state) {
-                            switch(_state.label){
-                                case 0:
-                                    sent = english;
-                                    _state.label = 1;
-                                case 1:
-                                    _state.trys.push([
-                                        1,
-                                        3,
-                                        ,
-                                        4
-                                    ]);
-                                    return [
-                                        4,
-                                        translateOutgoing(channelId, english, language)
-                                    ];
-                                case 2:
-                                    translated = _state.sent();
-                                    if (translated) sent = translated;
-                                    return [
-                                        3,
-                                        4
-                                    ];
-                                case 3:
-                                    error = _state.sent();
-                                    dependencies.onError(error);
-                                    (_dependencies_onFallback = dependencies.onFallback) === null || _dependencies_onFallback === void 0 ? void 0 : _dependencies_onFallback.call(dependencies, 'Translation failed; sent English.');
-                                    return [
-                                        3,
-                                        4
-                                    ];
-                                case 4:
-                                    if (sent === english) return [
-                                        2,
-                                        (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args))
-                                    ];
-                                    nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
-                                    outgoing = _object_spread_props(_object_spread({}, message), {
-                                        content: sent,
-                                        nonce: nonce
-                                    });
-                                    record = {
-                                        channelId: channelId,
-                                        english: english,
-                                        sent: sent,
-                                        language: language
-                                    };
-                                    pendingByNonce.set(nonce, record);
-                                    nextArgs = _to_consumable_array$3(args);
-                                    nextArgs[1] = outgoing;
-                                    _state.label = 5;
-                                case 5:
-                                    _state.trys.push([
-                                        5,
-                                        7,
-                                        ,
-                                        8
-                                    ]);
-                                    return [
-                                        4,
-                                        (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(nextArgs))
-                                    ];
-                                case 6:
-                                    return [
-                                        2,
-                                        _state.sent()
-                                    ];
-                                case 7:
-                                    error1 = _state.sent();
-                                    pendingByNonce.delete(nonce);
-                                    throw error1;
-                                case 8:
-                                    return [
-                                        2
-                                    ];
-                            }
-                        });
-                    })();
-                }();
             });
             // The patcher swaps the prop; if it still holds the same function, the
             // write was swallowed (lazy proxy) and nothing is intercepted.
@@ -2195,9 +2231,20 @@ function warn(message) {
 /**
  * Posts a local-only reply in the channel.
  *
- * Clyde messages are never sent to Discord, so command feedback stays private
- * to this device.
+ * Prefers Discord's own `sendBotMessage`, which builds and inserts the message
+ * itself. Falls back to constructing a Clyde message, then to a toast. Nothing
+ * here may throw: this runs inside the send patch, and an exception would take
+ * Discord's send path down with it.
  */ function reply(channelId, content) {
+    try {
+        var messageUtil = window.unbound.metro.findByProps('sendBotMessage');
+        if (typeof (messageUtil === null || messageUtil === void 0 ? void 0 : messageUtil.sendBotMessage) === 'function') {
+            messageUtil.sendBotMessage(channelId, content);
+            return;
+        }
+    } catch (error) {
+        console.warn('[Realtime Translator] sendBotMessage failed:', error);
+    }
     try {
         var message = window.unbound.metro.common.Clyde.createBotMessage({
             channelId: channelId,
@@ -2207,10 +2254,12 @@ function warn(message) {
             type: 'MESSAGE_CREATE',
             message: message
         });
+        return;
     } catch (error) {
-        console.warn('[Realtime Translator] Could not post command reply:', error);
-        warn('Translation settings updated.');
+        console.warn('[Realtime Translator] Clyde reply failed:', error);
     }
+    // Last resort: at least acknowledge that the setting changed.
+    warn(content.replace(/[*>`]/g, '').split('\n').slice(0, 2).join(' — '));
 }
 var index = {
     start: function start() {

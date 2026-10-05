@@ -24,17 +24,32 @@ function warn(message: string): void {
 /**
  * Posts a local-only reply in the channel.
  *
- * Clyde messages are never sent to Discord, so command feedback stays private
- * to this device.
+ * Prefers Discord's own `sendBotMessage`, which builds and inserts the message
+ * itself. Falls back to constructing a Clyde message, then to a toast. Nothing
+ * here may throw: this runs inside the send patch, and an exception would take
+ * Discord's send path down with it.
  */
 function reply(channelId: string, content: string): void {
   try {
+    const messageUtil = metro.findByProps('sendBotMessage');
+    if (typeof messageUtil?.sendBotMessage === 'function') {
+      messageUtil.sendBotMessage(channelId, content);
+      return;
+    }
+  } catch (error) {
+    console.warn('[Realtime Translator] sendBotMessage failed:', error);
+  }
+
+  try {
     const message = metro.common.Clyde.createBotMessage({ channelId, content });
     metro.common.Dispatcher.dispatch({ type: 'MESSAGE_CREATE', message });
+    return;
   } catch (error) {
-    console.warn('[Realtime Translator] Could not post command reply:', error);
-    warn('Translation settings updated.');
+    console.warn('[Realtime Translator] Clyde reply failed:', error);
   }
+
+  // Last resort: at least acknowledge that the setting changed.
+  warn(content.replace(/[*>`]/g, '').split('\n').slice(0, 2).join(' — '));
 }
 
 export default {

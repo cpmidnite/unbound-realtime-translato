@@ -45,6 +45,19 @@ export interface OutgoingController {
 
 const MAX_TRACKED_MESSAGES = 500;
 
+/**
+ * Stand-in result for a send we cancelled.
+ *
+ * Shaped like a successful-but-empty API response so Discord's call site can
+ * inspect it without throwing.
+ */
+export const CANCELLED_SEND = Object.freeze({
+  ok: true,
+  status: 200,
+  body: null,
+  cancelled: true,
+});
+
 function contentOf(message: any): string {
   return typeof message?.content === 'string' ? message.content : '';
 }
@@ -122,60 +135,85 @@ export function createOutgoingController(
         'sendMessage',
         (ctx) => {
           const args = ctx.args;
-          const channelId = typeof args[0] === 'string' ? args[0] : null;
-          const message = args[1];
 
-          if (!channelId || !message) return ctx.original(...args);
+          // The entire callback is guarded: this runs inside Discord's send
+          // path, so an exception here crashes sending (or the app).
+          try {
+            const channelId = typeof args[0] === 'string' ? args[0] : null;
+            const message = args[1];
 
-          const english = contentOf(message);
+            if (!channelId || !message) return ctx.original(...args);
 
-          // Configuration triggers are swallowed: never sent, never translated.
-          // Checked before the per-chat gate so a chat can be switched on from
-          // inside itself.
-          const trigger = handleTrigger(dependencies.config, channelId, english);
-          if (trigger.handled) {
-            if (trigger.reply) dependencies.onReply?.(channelId, trigger.reply);
-            return undefined;
-          }
+            const english = contentOf(message);
 
-          const config = dependencies.config.for(channelId);
-          if (!config.outgoing) return ctx.original(...args);
-
-          if (!isTranslatableOutgoing(english)) return ctx.original(...args);
-
-          const language = config.outgoingLanguage;
-
-          // The send becomes asynchronous: translate first, then hand the
-          // rewritten message to Discord's original implementation.
-          return (async () => {
-            let sent = english;
-
+            // Configuration triggers are swallowed: never sent, never
+            // translated. Checked before the per-chat gate so a chat can be
+            // switched on from inside itself.
+            let trigger;
             try {
-              const translated = await translateOutgoing(channelId, english, language);
-              if (translated) sent = translated;
+              trigger = handleTrigger(dependencies.config, channelId, english);
             } catch (error) {
               dependencies.onError(error);
-              dependencies.onFallback?.('Translation failed; sent English.');
+              trigger = { handled: false as const };
             }
 
-            if (sent === english) return ctx.original(...args);
+            if (trigger.handled) {
+              try {
+                if (trigger.reply) dependencies.onReply?.(channelId, trigger.reply);
+              } catch (error) {
+                dependencies.onError(error);
+              }
 
-            const nonce = nonceOf(message) ?? generateNonce();
-            const outgoing = { ...message, content: sent, nonce };
-            const record: OutgoingRecord = { channelId, english, sent, language };
-
-            pendingByNonce.set(nonce, record);
-
-            const nextArgs = [...args];
-            nextArgs[1] = outgoing;
-
-            try {
-              return await ctx.original(...nextArgs);
-            } catch (error) {
-              pendingByNonce.delete(nonce);
-              throw error;
+              // Must resolve to a thenable: Discord chains on sendMessage's
+              // result, and the patcher turns a bare `undefined` into `null`,
+              // which crashes the send path with "null is not an object".
+              return Promise.resolve(CANCELLED_SEND);
             }
-          })();
+
+            const config = dependencies.config.for(channelId);
+            if (!config.outgoing) return ctx.original(...args);
+
+            if (!isTranslatableOutgoing(english)) return ctx.original(...args);
+
+            const language = config.outgoingLanguage;
+
+            // The send becomes asynchronous: translate first, then hand the
+            // rewritten message to Discord's original implementation.
+            return (async () => {
+              let sent = english;
+
+              try {
+                const translated = await translateOutgoing(channelId, english, language);
+                if (translated) sent = translated;
+              } catch (error) {
+                dependencies.onError(error);
+                dependencies.onFallback?.('Translation failed; sent English.');
+              }
+
+              if (sent === english) return ctx.original(...args);
+
+              const nonce = nonceOf(message) ?? generateNonce();
+              const outgoing = { ...message, content: sent, nonce };
+              const record: OutgoingRecord = { channelId, english, sent, language };
+
+              pendingByNonce.set(nonce, record);
+
+              const nextArgs = [...args];
+              nextArgs[1] = outgoing;
+
+              try {
+                return await ctx.original(...nextArgs);
+              } catch (error) {
+                pendingByNonce.delete(nonce);
+                throw error;
+              }
+            })();
+          } catch (error) {
+            // Anything unexpected: send the message untouched rather than
+            // breaking Discord.
+            dependencies.onError(error);
+            return ctx.original(...args);
+          }
         },
       );
 
