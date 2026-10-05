@@ -184,7 +184,15 @@ export function createOutgoingController(
 
               try {
                 const translated = await translateOutgoing(channelId, english, language);
-                if (translated) sent = translated;
+                if (translated) {
+                  sent = translated;
+                } else {
+                  // Reaching here means the translator declined without
+                  // throwing. Say so rather than silently sending English.
+                  dependencies.onFallback?.(
+                    `No ${language.toUpperCase()} translation available; sent English.`,
+                  );
+                }
               } catch (error) {
                 dependencies.onError(error);
                 dependencies.onFallback?.('Translation failed; sent English.');

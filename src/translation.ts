@@ -65,11 +65,31 @@ export function hasTranslatableText(text: string): boolean {
     .test(withoutDiscordSyntax);
 }
 
+/**
+ * Parses the endpoint's response.
+ *
+ * The shape depends on the request: an explicit source language returns a flat
+ * `["translated"]`, while `sl=auto` returns a nested `[["translated","src"]]`
+ * (or segment arrays for longer text). All three forms are handled, because
+ * outbound translation always passes an explicit source.
+ */
 export function parseGoogleTranslation(payload: unknown): Translation {
-  if (!Array.isArray(payload) || !Array.isArray(payload[0])) {
+  if (!Array.isArray(payload) || payload.length === 0) {
     throw new Error('Translation endpoint returned an unexpected response.');
   }
 
+  // Flat form: explicit `sl`, e.g. ["lo enviaré mañana"]. No detected language.
+  if (typeof payload[0] === 'string') {
+    const text = payload[0].trim();
+    if (!text) throw new Error('Translation endpoint returned no translated text.');
+    return { text, detectedLanguage: '' };
+  }
+
+  if (!Array.isArray(payload[0])) {
+    throw new Error('Translation endpoint returned an unexpected response.');
+  }
+
+  // Nested single form: [["translated","es"]]
   if (typeof payload[0][0] === 'string') {
     const text = payload[0][0].trim();
     const detectedLanguage = typeof payload[0][1] === 'string' ? payload[0][1] : '';
@@ -78,6 +98,7 @@ export function parseGoogleTranslation(payload: unknown): Translation {
     return { text, detectedLanguage };
   }
 
+  // Segmented form: [[["seg one"],["seg two"]], …, "es"]
   const text = payload[0]
     .map((segment: unknown) => (Array.isArray(segment) && typeof segment[0] === 'string'
       ? segment[0]
@@ -156,9 +177,16 @@ export function createTranslationClient(
       const translation = parseGoogleTranslation(await response.json());
       const detected = baseLanguage(translation.detectedLanguage);
 
-      // Nothing was gained: the text already reads as the target language.
+      // Nothing was gained: the endpoint says the text is already the target.
       if (detected && detected === baseLanguage(target)) return null;
-      if (comparable(translation.text) === comparable(text)) return null;
+
+      // Identical output is only meaningless when the languages match. A word
+      // like "ok" legitimately translates to itself, and discarding it here
+      // would silently send the untranslated original.
+      if (
+        baseLanguage(source) === baseLanguage(target)
+        && comparable(translation.text) === comparable(text)
+      ) return null;
 
       return translation;
     } finally {

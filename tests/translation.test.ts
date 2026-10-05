@@ -12,6 +12,100 @@ const response = (translated: string, original: string, language: string) => [
 ];
 
 describe('Google-compatible translation client', () => {
+  test('parses the flat response an explicit source language returns', () => {
+    // Captured live: sl=en&tl=es responds ["lo enviaré mañana"], with no
+    // nesting and no detected language. This shape broke every outbound
+    // translation before it was handled.
+    expect(parseGoogleTranslation(['lo enviaré mañana'])).toEqual({
+      text: 'lo enviaré mañana',
+      detectedLanguage: '',
+    });
+  });
+
+  test('parses a flat multi-sentence response', () => {
+    expect(parseGoogleTranslation(['Lo enviaré mañana. Nos vemos entonces.'])).toEqual({
+      text: 'Lo enviaré mañana. Nos vemos entonces.',
+      detectedLanguage: '',
+    });
+  });
+
+  test('still parses the nested response sl=auto returns', () => {
+    expect(parseGoogleTranslation([['I will send it tomorrow', 'es']])).toEqual({
+      text: 'I will send it tomorrow',
+      detectedLanguage: 'es',
+    });
+  });
+
+  test('rejects responses carrying no usable text', () => {
+    expect(() => parseGoogleTranslation([''])).toThrow('no translated text');
+    expect(() => parseGoogleTranslation([])).toThrow('unexpected response');
+    expect(() => parseGoogleTranslation(null)).toThrow('unexpected response');
+    expect(() => parseGoogleTranslation([42])).toThrow('unexpected response');
+  });
+
+  test('returns an en->es translation end to end from the real payload shape', async () => {
+    const requested: string[] = [];
+    const client = createTranslationClient({
+      fetchImpl: async (url: string) => {
+        requested.push(url);
+        return {
+          ok: true,
+          status: 200,
+          // Exactly what the live endpoint returns for sl=en&tl=es.
+          json: async () => ['lo enviaré mañana'],
+        };
+      },
+    });
+
+    const result = await client.translate('I will send it tomorrow', {
+      source: 'en',
+      target: 'es',
+    });
+
+    expect(requested[0]).toContain('sl=en');
+    expect(requested[0]).toContain('tl=es');
+    expect(result).toEqual({ text: 'lo enviaré mañana', detectedLanguage: '' });
+  });
+
+  test('keeps a translation that happens to equal the source across languages', async () => {
+    const client = createTranslationClient({
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        // "ok" -> "OK": identical ignoring case, but a real es translation.
+        json: async () => ['OK'],
+      }),
+    });
+
+    const result = await client.translate('ok', { source: 'en', target: 'es' });
+
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe('OK');
+  });
+
+  test('caches per direction so en->es and auto->en do not collide', async () => {
+    let calls = 0;
+    const client = createTranslationClient({
+      fetchImpl: async (url: string) => {
+        calls += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (url.includes('tl=es')
+            ? ['hola']
+            : [['hello', 'es']]),
+        };
+      },
+    });
+
+    const outbound = await client.translate('hello', { source: 'en', target: 'es' });
+    const inbound = await client.translate('hello', { source: 'auto', target: 'en' });
+
+    expect(calls).toBe(2);
+    expect(outbound!.text).toBe('hola');
+    expect(inbound!.text).toBe('hello');
+  });
+
   test('parses the compact dictionary endpoint response', () => {
     expect(parseGoogleTranslation([['Hello friends', 'es']])).toEqual({
       text: 'Hello friends',

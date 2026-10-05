@@ -1272,7 +1272,9 @@ function generateNonce() {
                     // rewritten message to Discord's original implementation.
                     return function() {
                         return _async_to_generator$1(function() {
-                            var _ctx, _nonceOf, sent, translated, error, _dependencies_onFallback, nonce, outgoing, record, nextArgs, _ctx1, error1;
+                            var _ctx, _nonceOf, sent, translated, // Reaching here means the translator declined without
+                            // throwing. Say so rather than silently sending English.
+                            _dependencies_onFallback, error, _dependencies_onFallback1, nonce, outgoing, record, nextArgs, _ctx1, error1;
                             return _ts_generator$1(this, function(_state) {
                                 switch(_state.label){
                                     case 0:
@@ -1291,7 +1293,12 @@ function generateNonce() {
                                         ];
                                     case 2:
                                         translated = _state.sent();
-                                        if (translated) sent = translated;
+                                        if (translated) {
+                                            sent = translated;
+                                        } else {
+                                            ;
+                                            (_dependencies_onFallback = dependencies.onFallback) === null || _dependencies_onFallback === void 0 ? void 0 : _dependencies_onFallback.call(dependencies, "No ".concat(language.toUpperCase(), " translation available; sent English."));
+                                        }
                                         return [
                                             3,
                                             4
@@ -1299,7 +1306,7 @@ function generateNonce() {
                                     case 3:
                                         error = _state.sent();
                                         dependencies.onError(error);
-                                        (_dependencies_onFallback = dependencies.onFallback) === null || _dependencies_onFallback === void 0 ? void 0 : _dependencies_onFallback.call(dependencies, 'Translation failed; sent English.');
+                                        (_dependencies_onFallback1 = dependencies.onFallback) === null || _dependencies_onFallback1 === void 0 ? void 0 : _dependencies_onFallback1.call(dependencies, 'Translation failed; sent English.');
                                         return [
                                             3,
                                             4
@@ -1935,28 +1942,49 @@ function hasTranslatableText(text) {
     var withoutDiscordSyntax = text.replace(/https?:\/\/\S+/gi, '').replace(/<a?:\w+:\d+>/g, '').replace(/<(?:@!?|@&|#)\d+>/g, '').replace(/<t:\d+(?::[tTdDfFR])?>/g, '').replace(/<\/[\w-]+:\d+>/g, '');
     return /[A-Za-z0-9\u00C0-\u02FF\u0370-\u1FFF\u2C00-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]/.test(withoutDiscordSyntax);
 }
-function parseGoogleTranslation(payload) {
-    if (!Array.isArray(payload) || !Array.isArray(payload[0])) {
+/**
+ * Parses the endpoint's response.
+ *
+ * The shape depends on the request: an explicit source language returns a flat
+ * `["translated"]`, while `sl=auto` returns a nested `[["translated","src"]]`
+ * (or segment arrays for longer text). All three forms are handled, because
+ * outbound translation always passes an explicit source.
+ */ function parseGoogleTranslation(payload) {
+    if (!Array.isArray(payload) || payload.length === 0) {
         throw new Error('Translation endpoint returned an unexpected response.');
     }
-    if (typeof payload[0][0] === 'string') {
-        var text = payload[0][0].trim();
-        var detectedLanguage = typeof payload[0][1] === 'string' ? payload[0][1] : '';
+    // Flat form: explicit `sl`, e.g. ["lo enviaré mañana"]. No detected language.
+    if (typeof payload[0] === 'string') {
+        var text = payload[0].trim();
         if (!text) throw new Error('Translation endpoint returned no translated text.');
         return {
             text: text,
+            detectedLanguage: ''
+        };
+    }
+    if (!Array.isArray(payload[0])) {
+        throw new Error('Translation endpoint returned an unexpected response.');
+    }
+    // Nested single form: [["translated","es"]]
+    if (typeof payload[0][0] === 'string') {
+        var text1 = payload[0][0].trim();
+        var detectedLanguage = typeof payload[0][1] === 'string' ? payload[0][1] : '';
+        if (!text1) throw new Error('Translation endpoint returned no translated text.');
+        return {
+            text: text1,
             detectedLanguage: detectedLanguage
         };
     }
-    var text1 = payload[0].map(function(segment) {
+    // Segmented form: [[["seg one"],["seg two"]], …, "es"]
+    var text2 = payload[0].map(function(segment) {
         return Array.isArray(segment) && typeof segment[0] === 'string' ? segment[0] : '';
     }).join('').trim();
     var detectedLanguage1 = typeof payload[2] === 'string' ? payload[2] : '';
-    if (!text1) {
+    if (!text2) {
         throw new Error('Translation endpoint returned no translated text.');
     }
     return {
-        text: text1,
+        text: text2,
         detectedLanguage: detectedLanguage1
     };
 }
@@ -2040,12 +2068,15 @@ function createTranslationClient() {
                             _state.sent()
                         ]);
                         detected = baseLanguage(translation.detectedLanguage);
-                        // Nothing was gained: the text already reads as the target language.
+                        // Nothing was gained: the endpoint says the text is already the target.
                         if (detected && detected === baseLanguage(target)) return [
                             2,
                             null
                         ];
-                        if (comparable(translation.text) === comparable(text)) return [
+                        // Identical output is only meaningless when the languages match. A word
+                        // like "ok" legitimately translates to itself, and discarding it here
+                        // would silently send the untranslated original.
+                        if (baseLanguage(source) === baseLanguage(target) && comparable(translation.text) === comparable(text)) return [
                             2,
                             null
                         ];
