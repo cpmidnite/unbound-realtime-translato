@@ -29,6 +29,8 @@ interface OutgoingDependencies {
   onFallback?(reason: string): void;
   /** Shows local-only feedback for a configuration trigger. */
   onReply?(channelId: string, content: string): void;
+  /** Builds the diagnostics report for `!tr debug`. */
+  getDiagnostics?(): string;
 }
 
 export interface OutgoingController {
@@ -159,7 +161,12 @@ export function createOutgoingController(
             // switched on from inside itself.
             let trigger;
             try {
-              trigger = handleTrigger(dependencies.config, channelId, english);
+              trigger = handleTrigger(
+                dependencies.config,
+                channelId,
+                english,
+                dependencies.getDiagnostics,
+              );
             } catch (error) {
               dependencies.onError(error);
               trigger = { handled: false as const };

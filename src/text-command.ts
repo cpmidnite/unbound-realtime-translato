@@ -55,6 +55,7 @@ function help(): string {
     '`!tr send on` / `!tr send off` — messages you send',
     '`!tr lang es` — language to send in',
     '`!tr eng off` — hide your English under your own messages',
+    '`!tr debug` — report what the plugin can and cannot hook',
     '',
     'These commands are never sent to the chat.',
   ].join('\n');
@@ -70,6 +71,7 @@ export function handleTrigger(
   config: ChatConfigController,
   channelId: string,
   content: string,
+  getDiagnostics?: () => string,
 ): TriggerOutcome {
   const trimmed = content.trim();
   const lower = trimmed.toLocaleLowerCase();
@@ -86,6 +88,13 @@ export function handleTrigger(
 
   const [rawCommand, rawValue] = parts;
   const command = rawCommand!.toLocaleLowerCase();
+
+  if (command === 'debug' || command === 'diag') {
+    return {
+      handled: true,
+      reply: getDiagnostics?.() ?? 'Diagnostics are unavailable.',
+    };
+  }
 
   if (command === 'help' || command === '?') {
     return { handled: true, reply: help() };

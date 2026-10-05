@@ -32,8 +32,10 @@ export interface Decoration {
 type ContentNode = Record<string, any>;
 
 interface RenderDependencies {
-  /** Native chat module exposing `updateRows`. */
+  /** Native chat module exposing a row-update method. */
   chatModule: any;
+  /** Method on that module which receives the rows. */
+  method?: string;
   patchBefore(
     parent: any,
     method: string,
@@ -41,6 +43,12 @@ interface RenderDependencies {
   ): () => void;
   getDecoration(messageId: string): Decoration | undefined;
   onError(error: unknown): void;
+  /** Optional observer, used by the diagnostics report. */
+  observe?: {
+    call(args: any[]): void;
+    parsed(): void;
+    decorated(count: number): void;
+  };
 }
 
 export interface RenderController {
@@ -138,12 +146,12 @@ export function decorateRow(
 export function decorateRows(
   rows: unknown,
   getDecoration: (messageId: string) => Decoration | undefined,
-): boolean {
-  if (!Array.isArray(rows)) return false;
+): number {
+  if (!Array.isArray(rows)) return 0;
 
-  let changed = false;
+  let changed = 0;
   for (const row of rows) {
-    if (decorateRow(row, getDecoration)) changed = true;
+    if (decorateRow(row, getDecoration)) changed += 1;
   }
 
   return changed;
@@ -159,27 +167,33 @@ export function createRenderController(
       if (unpatch) return true;
 
       const target = dependencies.chatModule;
-      if (!target || typeof target.updateRows !== 'function') return false;
+      const method = dependencies.method ?? 'updateRows';
+      if (!target || typeof target[method] !== 'function') return false;
 
-      const before = target.updateRows;
+      const before = target[method];
 
-      unpatch = dependencies.patchBefore(target, 'updateRows', (args) => {
+      unpatch = dependencies.patchBefore(target, method, (args) => {
         // Never throw: this call renders the message list.
         try {
+          dependencies.observe?.call(args);
+
           const raw = args[1];
           if (typeof raw !== 'string') return;
 
           const rows = JSON.parse(raw);
-          if (decorateRows(rows, dependencies.getDecoration)) {
-            args[1] = JSON.stringify(rows);
-          }
+          dependencies.observe?.parsed();
+
+          const changed = decorateRows(rows, dependencies.getDecoration);
+          dependencies.observe?.decorated(changed);
+
+          if (changed > 0) args[1] = JSON.stringify(rows);
         } catch (error) {
           dependencies.onError(error);
         }
       });
 
       // A lazy proxy swallows defineProperty silently; confirm the swap took.
-      if (target.updateRows === before) {
+      if (target[method] === before) {
         unpatch();
         unpatch = undefined;
         return false;

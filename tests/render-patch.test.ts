@@ -138,7 +138,7 @@ describe('row decoration', () => {
       messageRow('m3', [text('tres')]),
     ];
 
-    expect(decorateRows(rows, (id) => store.get(id))).toBe(true);
+    expect(decorateRows(rows, (id) => store.get(id))).toBe(2);
     expect(contentToText(rows[0]!.message.content)).toContain('one');
     expect(contentToText(rows[1]!.message.content)).toBe('dos');
     expect(contentToText(rows[2]!.message.content)).toContain('three');
@@ -148,8 +148,8 @@ describe('row decoration', () => {
     const store = createDecorationStore();
     const rows = [messageRow('m1', [text('hola')])];
 
-    expect(decorateRows(rows, (id) => store.get(id))).toBe(false);
-    expect(decorateRows('not an array', (id) => store.get(id))).toBe(false);
+    expect(decorateRows(rows, (id) => store.get(id))).toBe(0);
+    expect(decorateRows('not an array', (id) => store.get(id))).toBe(0);
   });
 
   test('injected nodes are flagged so they can be recognised', () => {

@@ -6,6 +6,8 @@ import { createOutgoingController, type OutgoingController } from './outgoing';
 import { createCommandController, type CommandController } from './commands';
 import { createRenderController, type RenderController } from './render-patch';
 import { createDecorationStore } from './decorations';
+import { createDiagnostics, describePayload } from './diagnostics';
+import { findChatModule } from './find-chat-module';
 import { resolvePatchTarget } from './patch-target';
 import { getSelectedChannelMessages } from './messages';
 import { createTranslationClient } from './translation';
@@ -15,6 +17,7 @@ let controller: RealtimeController | undefined;
 let outgoing: OutgoingController | undefined;
 let commands: CommandController | undefined;
 let render: RenderController | undefined;
+const diagnostics = createDiagnostics();
 
 function warn(message: string): void {
   try {
@@ -67,11 +70,25 @@ export default {
 
     // Patch the render path, as BetterDiscord's Translator does, so Discord's
     // message store is never modified and the server cannot erase the added
-    // line. The mobile seam is the native chat module's updateRows, which
+    // line. The mobile seam is the native chat module's row-update call, which
     // receives the rendered rows as a JSON string.
-    const chatModule = native.getNativeModule('NativeChatModule', 'DCDChatManager');
+    const found = findChatModule({
+      getNativeModule: (...names: string[]) => native.getNativeModule(...names),
+      moduleMaps: [
+        (globalThis as any)?.nativeModuleProxy,
+        (metro.common.ReactNative as any)?.NativeModules,
+      ],
+    });
+
+    diagnostics.setChatModule(
+      Boolean(found),
+      found?.name ?? null,
+      found?.methods ?? [],
+    );
+
     render = createRenderController({
-      chatModule,
+      chatModule: found?.module,
+      method: found?.method,
       patchBefore: (parent, method, callback) => patcher.before(
         parent,
         method as never,
@@ -79,7 +96,18 @@ export default {
         { caller: STORE_NAME },
       ),
       getDecoration: (messageId) => decorations.get(messageId),
-      onError: (error) => console.warn('[Realtime Translator] Row render failed:', error),
+      onError: (error) => {
+        diagnostics.recordError(error);
+        console.warn('[Realtime Translator] Row render failed:', error);
+      },
+      observe: {
+        call: (args) => {
+          diagnostics.countRenderCall();
+          diagnostics.recordPayload(describePayload(args));
+        },
+        parsed: () => diagnostics.countParsedPayload(),
+        decorated: (count) => diagnostics.countDecorated(count),
+      },
     });
 
     const renderPatched = (() => {
@@ -98,6 +126,8 @@ export default {
         + ' falling back to local message updates, which Discord may overwrite.',
       );
     }
+
+    diagnostics.setRenderPatched(renderPatched);
 
     /** Nudges the row for one message to re-render without editing the store. */
     const requestRerender = (channelId: string, messageId: string): void => {
@@ -132,6 +162,10 @@ export default {
       onError: (error) => console.warn('[Realtime Translator] Outgoing failed:', error),
       onFallback: warn,
       onReply: reply,
+      getDiagnostics: () => {
+        diagnostics.setStoredDecorations(decorations.size());
+        return diagnostics.report();
+      },
     });
 
     controller = createRealtimeController({
@@ -169,6 +203,7 @@ export default {
 
     outgoing.start();
     controller.start();
+    diagnostics.setSendPatched(outgoing.isActive());
 
     // Prove the send patch actually took. A lazy proxy silently swallows
     // Object.defineProperty, so "no error" is not evidence of success.
