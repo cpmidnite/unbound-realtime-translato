@@ -26,7 +26,7 @@ function _object_spread$2(target) {
     }
     return target;
 }
-function _type_of$2(obj) {
+function _type_of$3(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -52,7 +52,7 @@ function normalizeLanguage(value) {
  */ function createChatConfig(store) {
     function readChats() {
         var chats = store.get('chats', {});
-        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$2(chats)) === 'object' ? chats : {};
+        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$3(chats)) === 'object' ? chats : {};
     }
     function patch(channelId, changes) {
         var _chats_channelId;
@@ -65,7 +65,7 @@ function normalizeLanguage(value) {
         for: function _for(channelId) {
             if (typeof channelId !== 'string' || !channelId) return DISABLED;
             var entry = readChats()[channelId];
-            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$2(entry)) !== 'object') return DISABLED;
+            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$3(entry)) !== 'object') return DISABLED;
             return {
                 incoming: entry.incoming === true,
                 outgoing: entry.outgoing === true,
@@ -424,11 +424,13 @@ function createRealtimeController(dependencies) {
         })();
     }
     /** Re-attaches your English original beneath a message you sent translated. */ function decorateOwnMessage(message, messageId, channelId, content) {
-        var _dependencies_getMessage;
+        var _ref, _dependencies_getMessage;
         var outgoing = dependencies.outgoing;
         if (!outgoing) return;
         var nonce = typeof (message === null || message === void 0 ? void 0 : message.nonce) === 'string' || typeof (message === null || message === void 0 ? void 0 : message.nonce) === 'number' ? String(message.nonce) : null;
-        var record = nonce ? outgoing.resolveNonce(nonce, messageId) : outgoing.englishFor(messageId);
+        // Prefer the nonce; fall back to matching the sent content, since Discord
+        // may replace the nonce we supplied.
+        var record = (_ref = nonce ? outgoing.resolveNonce(nonce, messageId) : undefined) !== null && _ref !== void 0 ? _ref : outgoing.resolveSent(channelId, content, messageId);
         if (!record || record.sent !== content) return;
         var safeEnglish = escapeTranslation(record.english);
         if (!safeEnglish) return;
@@ -642,7 +644,7 @@ function createRealtimeController(dependencies) {
             restoreMessages();
         }
     };
-}function _type_of$1(obj) {
+}function _type_of$2(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -718,7 +720,7 @@ function maskTokens(input) {
     var restored = text;
     for(var index = 0; index < tokens.length; index += 1){
         var _ret = _loop(index);
-        if (_type_of$1(_ret) === "object") return _ret.v;
+        if (_type_of$2(_ret) === "object") return _ret.v;
     }
     if (restored.includes(SENTINEL)) return null;
     return restored;
@@ -1134,6 +1136,10 @@ function _ts_generator$1(thisArg, body) {
         };
     }
 }
+function _type_of$1(obj) {
+    "@swc/helpers - typeof";
+    return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
+}
 function _unsupported_iterable_to_array$3(o, minLen) {
     if (!o) return;
     if (typeof o === "string") return _array_like_to_array$3(o, minLen);
@@ -1167,6 +1173,9 @@ function generateNonce() {
     var random = Math.floor(Math.random() * 1e9).toString(36);
     return "rt-".concat(Date.now().toString(36), "-").concat(random);
 }
+/** Key for the content-based fallback index. */ function contentKey(channelId, content) {
+    return "".concat(channelId, ":").concat(content);
+}
 /**
  * Translates messages you send, before they leave the device.
  *
@@ -1175,6 +1184,7 @@ function generateNonce() {
  * once Discord echoes it back with the same nonce.
  */ function createOutgoingController(dependencies) {
     var pendingByNonce = new Map();
+    var pendingByContent = new Map();
     var byMessageId = new Map();
     var unpatch;
     var active = false;
@@ -1274,7 +1284,7 @@ function generateNonce() {
                         return _async_to_generator$1(function() {
                             var _ctx, _nonceOf, sent, translated, // Reaching here means the translator declined without
                             // throwing. Say so rather than silently sending English.
-                            _dependencies_onFallback, error, _dependencies_onFallback1, nonce, outgoing, record, nextArgs, _ctx1, error1;
+                            _dependencies_onFallback, error, _dependencies_onFallback1, nonce, outgoing, record, nextArgs, existingOptions, _ctx1, error1;
                             return _ts_generator$1(this, function(_state) {
                                 switch(_state.label){
                                     case 0:
@@ -1328,8 +1338,20 @@ function generateNonce() {
                                             language: language
                                         };
                                         pendingByNonce.set(nonce, record);
+                                        // Discord may assign its own nonce, so also index by content:
+                                        // the echo is matched on either key.
+                                        pendingByContent.set(contentKey(channelId, sent), record);
                                         nextArgs = _to_consumable_array$3(args);
                                         nextArgs[1] = outgoing;
+                                        // The nonce is honoured only in the options argument (index 3);
+                                        // `message.nonce` alone is ignored, which leaves the echoed
+                                        // message carrying a different nonce than the one we stored.
+                                        existingOptions = nextArgs[3];
+                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$1(existingOptions)) === 'object' ? _object_spread_props(_object_spread({}, existingOptions), {
+                                            nonce: nonce
+                                        }) : {
+                                            nonce: nonce
+                                        };
                                         _state.label = 5;
                                     case 5:
                                         _state.trys.push([
@@ -1350,6 +1372,7 @@ function generateNonce() {
                                     case 7:
                                         error1 = _state.sent();
                                         pendingByNonce.delete(nonce);
+                                        pendingByContent.delete(contentKey(channelId, sent));
                                         throw error1;
                                     case 8:
                                         return [
@@ -1383,6 +1406,7 @@ function generateNonce() {
             unpatch = undefined;
             patchedFunction = undefined;
             pendingByNonce.clear();
+            pendingByContent.clear();
             byMessageId.clear();
         },
         isActive: function isActive() {
@@ -1398,6 +1422,17 @@ function generateNonce() {
             var record = pendingByNonce.get(nonce);
             if (!record) return byMessageId.get(messageId);
             pendingByNonce.delete(nonce);
+            pendingByContent.delete(contentKey(record.channelId, record.sent));
+            remember(messageId, record);
+            return record;
+        },
+        resolveSent: function resolveSent(channelId, content, messageId) {
+            var known = byMessageId.get(messageId);
+            if (known) return known;
+            var key = contentKey(channelId, content);
+            var record = pendingByContent.get(key);
+            if (!record) return undefined;
+            pendingByContent.delete(key);
             remember(messageId, record);
             return record;
         },

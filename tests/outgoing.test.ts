@@ -241,7 +241,11 @@ describe('outgoing translation', () => {
 
     await h.send('c1', { content: 'hi there' }, { replyTo: 'm9' }, true);
 
-    expect(h.sent[0].rest).toEqual([{ replyTo: 'm9' }, true]);
+    // Argument 3 passes through untouched; argument 4 is the options bag, which
+    // gains the nonce. `true` here is a caller-supplied options value, so it is
+    // replaced by an object carrying the nonce.
+    expect(h.sent[0].rest[0]).toEqual({ replyTo: 'm9' });
+    expect(typeof h.sent[0].rest[1].nonce).toBe('string');
   });
 
   test('drops the pending nonce when the send itself throws', async () => {
@@ -257,6 +261,67 @@ describe('outgoing translation', () => {
     ).rejects.toThrow('network');
 
     expect(h.controller.pendingNonces()).toBe(0);
+  });
+
+  test('passes the nonce in the options argument, where Discord honours it', async () => {
+    const h = harness({
+      translate: async () => ({ text: 'hola', detectedLanguage: 'en' }),
+    });
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    await h.send('c1', { content: 'hello' });
+
+    // sendMessage(channelId, message, waitForChannelReady, options)
+    // A nonce set only on the message object is ignored by Discord.
+    const options = h.sent[0].rest[1];
+    expect(options).toBeDefined();
+    expect(typeof options.nonce).toBe('string');
+    expect(options.nonce).toBe(h.sent[0].message.nonce);
+  });
+
+  test('preserves an existing options argument while adding the nonce', async () => {
+    const h = harness({
+      translate: async () => ({ text: 'hola', detectedLanguage: 'en' }),
+    });
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    await h.send('c1', { content: 'hello' }, undefined, { messageReference: { message_id: 'm9' } });
+
+    const options = h.sent[0].rest[1];
+    expect(options.messageReference).toEqual({ message_id: 'm9' });
+    expect(typeof options.nonce).toBe('string');
+  });
+
+  test('resolves the English by content when Discord replaced the nonce', async () => {
+    const h = harness({
+      translate: async () => ({ text: 'hola amigo', detectedLanguage: 'en' }),
+    });
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    await h.send('c1', { content: 'hello friend' });
+
+    // Discord echoes a nonce we never issued.
+    expect(h.controller.resolveNonce('some-other-nonce', 'm1')).toBeUndefined();
+
+    const record = h.controller.resolveSent('c1', 'hola amigo', 'm1');
+    expect(record).toMatchObject({ english: 'hello friend', sent: 'hola amigo' });
+    expect(h.controller.englishFor('m1')?.english).toBe('hello friend');
+  });
+
+  test('does not match content from a different chat', async () => {
+    const h = harness({
+      translate: async () => ({ text: 'hola', detectedLanguage: 'en' }),
+    });
+    h.config.setOutgoing('c1', true);
+    h.controller.start();
+
+    await h.send('c1', { content: 'hello' });
+
+    expect(h.controller.resolveSent('c2', 'hola', 'm1')).toBeUndefined();
+    expect(h.controller.resolveSent('c1', 'hola', 'm1')).toBeDefined();
   });
 
   test('unpatches and clears state on stop', async () => {

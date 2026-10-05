@@ -147,9 +147,10 @@ export function createRealtimeController(
       ? String(message.nonce)
       : null;
 
-    const record = nonce
-      ? outgoing.resolveNonce(nonce, messageId)
-      : outgoing.englishFor(messageId);
+    // Prefer the nonce; fall back to matching the sent content, since Discord
+    // may replace the nonce we supplied.
+    const record = (nonce ? outgoing.resolveNonce(nonce, messageId) : undefined)
+      ?? outgoing.resolveSent(channelId, content, messageId);
 
     if (!record || record.sent !== content) return;
 

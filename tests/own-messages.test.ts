@@ -62,6 +62,7 @@ function harness(options: {
       isActive: () => true,
       pendingNonces: () => 0,
       englishFor: (messageId: string) => records[messageId],
+      resolveSent: (_channelId: string, _content: string, messageId: string) => records[messageId],
       resolveNonce: (nonce: string, messageId: string) => {
         resolved.push({ nonce, messageId });
         return records[nonce] ?? records[messageId];

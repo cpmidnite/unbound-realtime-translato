@@ -40,6 +40,8 @@ export interface OutgoingController {
   englishFor(messageId: string): OutgoingRecord | undefined;
   /** Binds a pending nonce to the server-assigned message id. */
   resolveNonce(nonce: string, messageId: string): OutgoingRecord | undefined;
+  /** Fallback match on channel + sent content, when the nonce did not survive. */
+  resolveSent(channelId: string, content: string, messageId: string): OutgoingRecord | undefined;
   pendingNonces(): number;
 }
 
@@ -74,6 +76,11 @@ function generateNonce(): string {
   return `rt-${Date.now().toString(36)}-${random}`;
 }
 
+/** Key for the content-based fallback index. */
+function contentKey(channelId: string, content: string): string {
+  return `${channelId}:${content}`;
+}
+
 /**
  * Translates messages you send, before they leave the device.
  *
@@ -85,6 +92,7 @@ export function createOutgoingController(
   dependencies: OutgoingDependencies,
 ): OutgoingController {
   const pendingByNonce = new Map<string, OutgoingRecord>();
+  const pendingByContent = new Map<string, OutgoingRecord>();
   const byMessageId = new Map<string, OutgoingRecord>();
   let unpatch: (() => void) | undefined;
   let active = false;
@@ -205,14 +213,26 @@ export function createOutgoingController(
               const record: OutgoingRecord = { channelId, english, sent, language };
 
               pendingByNonce.set(nonce, record);
+              // Discord may assign its own nonce, so also index by content:
+              // the echo is matched on either key.
+              pendingByContent.set(contentKey(channelId, sent), record);
 
               const nextArgs = [...args];
               nextArgs[1] = outgoing;
+
+              // The nonce is honoured only in the options argument (index 3);
+              // `message.nonce` alone is ignored, which leaves the echoed
+              // message carrying a different nonce than the one we stored.
+              const existingOptions = nextArgs[3];
+              nextArgs[3] = existingOptions && typeof existingOptions === 'object'
+                ? { ...existingOptions, nonce }
+                : { nonce };
 
               try {
                 return await ctx.original(...nextArgs);
               } catch (error) {
                 pendingByNonce.delete(nonce);
+                pendingByContent.delete(contentKey(channelId, sent));
                 throw error;
               }
             })();
@@ -242,6 +262,7 @@ export function createOutgoingController(
       unpatch = undefined;
       patchedFunction = undefined;
       pendingByNonce.clear();
+      pendingByContent.clear();
       byMessageId.clear();
     },
 
@@ -260,6 +281,20 @@ export function createOutgoingController(
       if (!record) return byMessageId.get(messageId);
 
       pendingByNonce.delete(nonce);
+      pendingByContent.delete(contentKey(record.channelId, record.sent));
+      remember(messageId, record);
+      return record;
+    },
+
+    resolveSent(channelId: string, content: string, messageId: string): OutgoingRecord | undefined {
+      const known = byMessageId.get(messageId);
+      if (known) return known;
+
+      const key = contentKey(channelId, content);
+      const record = pendingByContent.get(key);
+      if (!record) return undefined;
+
+      pendingByContent.delete(key);
       remember(messageId, record);
       return record;
     },
