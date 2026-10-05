@@ -552,10 +552,22 @@ function createRealtimeController(dependencies) {
         }));
     }
     var onReconcile = function onReconcile(event) {
-        var _event_message;
+        var _event_message, _event_message1;
         // Our own re-application dispatches MESSAGE_UPDATE; ignore that.
         if (!active || reconciling) return;
-        var messageId = typeof (event === null || event === void 0 ? void 0 : (_event_message = event.message) === null || _event_message === void 0 ? void 0 : _event_message.id) === 'string' ? event.message.id : typeof (event === null || event === void 0 ? void 0 : event.messageId) === 'string' ? event.messageId : null;
+        // On a successful send Discord swaps the optimistic local id for the
+        // server's snowflake. Re-key the decoration so the id lookup keeps working
+        // instead of relying on the content fallback.
+        var oldId = typeof (event === null || event === void 0 ? void 0 : event.optimisticId) === 'string' ? event.optimisticId : typeof (event === null || event === void 0 ? void 0 : event.nonce) === 'string' ? event.nonce : null;
+        var newId = typeof (event === null || event === void 0 ? void 0 : (_event_message = event.message) === null || _event_message === void 0 ? void 0 : _event_message.id) === 'string' ? event.message.id : null;
+        if (oldId && newId && oldId !== newId && dependencies.decorations) {
+            var carried = dependencies.decorations.get(oldId);
+            if (carried) {
+                dependencies.decorations.set(newId, carried);
+                dependencies.decorations.delete(oldId);
+            }
+        }
+        var messageId = typeof (event === null || event === void 0 ? void 0 : (_event_message1 = event.message) === null || _event_message1 === void 0 ? void 0 : _event_message1.id) === 'string' ? event.message.id : typeof (event === null || event === void 0 ? void 0 : event.messageId) === 'string' ? event.messageId : null;
         if (messageId) {
             // Let Discord's own stores settle before re-reading and re-applying.
             setTimeout(function() {
@@ -1356,7 +1368,7 @@ function generateNonce() {
     var random = Math.floor(Math.random() * 1e9).toString(36);
     return "rt-".concat(Date.now().toString(36), "-").concat(random);
 }
-/** Key for the content-based fallback index. */ function contentKey(channelId, content) {
+/** Key for the content-based fallback index. */ function contentKey$1(channelId, content) {
     return "".concat(channelId, ":").concat(content);
 }
 /**
@@ -1523,7 +1535,7 @@ function generateNonce() {
                                         pendingByNonce.set(nonce, record);
                                         // Discord may assign its own nonce, so also index by content:
                                         // the echo is matched on either key.
-                                        pendingByContent.set(contentKey(channelId, sent), record);
+                                        pendingByContent.set(contentKey$1(channelId, sent), record);
                                         nextArgs = _to_consumable_array$6(args);
                                         nextArgs[1] = outgoing;
                                         // The nonce is honoured only in the options argument (index 3);
@@ -1555,7 +1567,7 @@ function generateNonce() {
                                     case 7:
                                         error1 = _state.sent();
                                         pendingByNonce.delete(nonce);
-                                        pendingByContent.delete(contentKey(channelId, sent));
+                                        pendingByContent.delete(contentKey$1(channelId, sent));
                                         throw error1;
                                     case 8:
                                         return [
@@ -1605,14 +1617,14 @@ function generateNonce() {
             var record = pendingByNonce.get(nonce);
             if (!record) return byMessageId.get(messageId);
             pendingByNonce.delete(nonce);
-            pendingByContent.delete(contentKey(record.channelId, record.sent));
+            pendingByContent.delete(contentKey$1(record.channelId, record.sent));
             remember(messageId, record);
             return record;
         },
         resolveSent: function resolveSent(channelId, content, messageId) {
             var known = byMessageId.get(messageId);
             if (known) return known;
-            var key = contentKey(channelId, content);
+            var key = contentKey$1(channelId, content);
             var record = pendingByContent.get(key);
             if (!record) return undefined;
             pendingByContent.delete(key);
@@ -2006,7 +2018,7 @@ function alreadyDecorated(content) {
  * Appends the decoration to one parsed row.
  *
  * @returns true when the row was changed.
- */ function decorateRow(row, getDecoration) {
+ */ function decorateRow(row, getDecoration, getByContent) {
     // type 1 is a message row; anything else has no content to decorate.
     if (!row || row.type !== 1) return false;
     var message = row.message;
@@ -2015,22 +2027,27 @@ function alreadyDecorated(content) {
     var content = message.content;
     if (!Array.isArray(content) || content.length === 0) return false;
     if (alreadyDecorated(content)) return false;
+    var text = contentToText(content).trim();
+    // By id first. On send, Discord re-keys an optimistic message from a local id
+    // to the server snowflake, so fall back to matching the text — otherwise the
+    // line appears and then vanishes the instant the swap lands.
     var decoration = getDecoration(messageId);
+    if (!(decoration === null || decoration === void 0 ? void 0 : decoration.line)) decoration = getByContent === null || getByContent === void 0 ? void 0 : getByContent(text);
     if (!(decoration === null || decoration === void 0 ? void 0 : decoration.line)) return false;
     // The row carries different text than what was translated: leave it alone
     // rather than label an edited message with a stale translation.
-    if (contentToText(content).trim() !== decoration.content.trim()) return false;
+    if (text !== decoration.content.trim()) return false;
     message.content = _to_consumable_array$4(content).concat(_to_consumable_array$4(buildDecorationNodes(decoration.line)));
     return true;
 }
-/** Mutates every message row in a parsed `updateRows` payload. */ function decorateRows(rows, getDecoration) {
+/** Mutates every message row in a parsed `updateRows` payload. */ function decorateRows(rows, getDecoration, getByContent) {
     if (!Array.isArray(rows)) return 0;
     var changed = 0;
     var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
     try {
         for(var _iterator = rows[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
             var row = _step.value;
-            if (decorateRow(row, getDecoration)) changed += 1;
+            if (decorateRow(row, getDecoration, getByContent)) changed += 1;
         }
     } catch (err) {
         _didIteratorError = true;
@@ -2061,7 +2078,7 @@ function alreadyDecorated(content) {
  * it parsed.
  *
  * @returns Number of rows decorated.
- */ function decoratePayload(args, getDecoration) {
+ */ function decoratePayload(args, getDecoration, getByContent) {
     var changed = 0;
     for(var index = 0; index < args.length; index += 1){
         var argument = args[index];
@@ -2074,7 +2091,7 @@ function alreadyDecorated(content) {
             } catch (unused) {
                 continue;
             }
-            var count = decorateAnyRows(parsed, getDecoration);
+            var count = decorateAnyRows(parsed, getDecoration, getByContent);
             if (count > 0) {
                 args[index] = JSON.stringify(parsed);
                 changed += count;
@@ -2083,7 +2100,7 @@ function alreadyDecorated(content) {
         }
         // Forms 2 and 3: a live array of rows, or an object holding one. Mutated in
         // place, so no re-assignment is needed.
-        changed += decorateAnyRows(argument, getDecoration);
+        changed += decorateAnyRows(argument, getDecoration, getByContent);
     }
     return changed;
 }
@@ -2094,18 +2111,18 @@ function alreadyDecorated(content) {
     'messages',
     'rowData'
 ];
-/** Decorates rows held directly, or nested one level under a known key. */ function decorateAnyRows(value, getDecoration) {
-    if (Array.isArray(value)) return decorateRows(value, getDecoration);
+/** Decorates rows held directly, or nested one level under a known key. */ function decorateAnyRows(value, getDecoration, getByContent) {
+    if (Array.isArray(value)) return decorateRows(value, getDecoration, getByContent);
     if (!value || (typeof value === "undefined" ? "undefined" : _type_of$4(value)) !== 'object') return 0;
     var changed = 0;
     // A single row passed on its own, as RowManager.generate returns.
-    if (decorateRow(value, getDecoration)) changed += 1;
+    if (decorateRow(value, getDecoration, getByContent)) changed += 1;
     var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
     try {
         for(var _iterator = ROW_KEYS[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
             var key = _step.value;
             var nested = value[key];
-            if (Array.isArray(nested)) changed += decorateRows(nested, getDecoration);
+            if (Array.isArray(nested)) changed += decorateRows(nested, getDecoration, getByContent);
         }
     } catch (err) {
         _didIteratorError = true;
@@ -2148,7 +2165,7 @@ function createRenderController(dependencies) {
                                     result
                                 ], where);
                                 (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
-                                var count = decorateAnyRows(result, dependencies.getDecoration);
+                                var count = decorateAnyRows(result, dependencies.getDecoration, dependencies.getByContent);
                                 (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(count);
                             } catch (error) {
                                 dependencies.onError(error);
@@ -2159,7 +2176,7 @@ function createRenderController(dependencies) {
                             try {
                                 var _dependencies_observe, _dependencies_observe1, _dependencies_observe2;
                                 (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.call(args, where);
-                                var count = decoratePayload(args, dependencies.getDecoration);
+                                var count = decoratePayload(args, dependencies.getDecoration, dependencies.getByContent);
                                 if (count > 0) (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
                                 (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(count);
                             } catch (error) {
@@ -2234,31 +2251,116 @@ function createRenderController(dependencies) {
  * Translations live here and nowhere else. Discord's message store is never
  * modified, so nothing the server sends can erase them; the render patch reads
  * this map on every row it builds.
+ *
+ * Lookups are by message id AND by content, because a message id is not stable.
+ * When you send a message Discord renders an optimistic copy under a temporary
+ * local id, then replaces it with the server's snowflake. A decoration recorded
+ * against the first id becomes unreachable the moment that swap happens, which
+ * is exactly the reported "shows up then disappears after sending". The content
+ * index survives the swap, since the text is identical either way.
  */ var MAX_ENTRIES = 1000;
+/** Normalises text so the same message matches across a re-key. */ function contentKey(content) {
+    return content.replace(/\s+/g, ' ').trim();
+}
 function createDecorationStore() {
     var maxEntries = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : MAX_ENTRIES;
     var entries = new Map();
+    /** Secondary index: normalised content to decoration. */ var byContent = new Map();
+    function evict() {
+        while(entries.size > maxEntries){
+            var oldest = entries.keys().next().value;
+            if (oldest === undefined) break;
+            var stale = entries.get(oldest);
+            entries.delete(oldest);
+            // Only drop the content entry when it still points at the evicted
+            // decoration; a newer message with identical text must survive.
+            if (stale) {
+                var key = contentKey(stale.content);
+                if (byContent.get(key) === stale) byContent.delete(key);
+            }
+        }
+        while(byContent.size > maxEntries){
+            var oldest1 = byContent.keys().next().value;
+            if (oldest1 === undefined) break;
+            byContent.delete(oldest1);
+        }
+    }
     return {
         set: function set(messageId, decoration) {
             entries.delete(messageId);
             entries.set(messageId, decoration);
-            while(entries.size > maxEntries){
-                var oldest = entries.keys().next().value;
-                if (oldest === undefined) break;
-                entries.delete(oldest);
+            if (decoration.content) {
+                byContent.set(contentKey(decoration.content), decoration);
             }
+            evict();
         },
         get: function get(messageId) {
             return entries.get(messageId);
+        },
+        getByContent: function getByContent(content) {
+            return byContent.get(contentKey(content));
         },
         has: function has(messageId) {
             return entries.has(messageId);
         },
         delete: function _delete(messageId) {
+            var stale = entries.get(messageId);
             entries.delete(messageId);
+            if (!stale) return;
+            var key = contentKey(stale.content);
+            if (byContent.get(key) !== stale) return;
+            var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+            try {
+                // Another id may still hold this same decoration — re-keying a sent
+                // message sets the new id before deleting the old one, and both point at
+                // one object. Only drop the index when nothing references it.
+                for(var _iterator = entries.values()[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                    var remaining = _step.value;
+                    if (remaining === stale) return;
+                }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return != null) {
+                        _iterator.return();
+                    }
+                } finally{
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+            var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+            try {
+                // A different decoration with identical text keeps the index usable.
+                for(var _iterator1 = entries.values()[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+                    var remaining1 = _step1.value;
+                    if (contentKey(remaining1.content) === key) {
+                        byContent.set(key, remaining1);
+                        return;
+                    }
+                }
+            } catch (err) {
+                _didIteratorError1 = true;
+                _iteratorError1 = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                        _iterator1.return();
+                    }
+                } finally{
+                    if (_didIteratorError1) {
+                        throw _iteratorError1;
+                    }
+                }
+            }
+            byContent.delete(key);
         },
         clear: function clear() {
             entries.clear();
+            byContent.clear();
         },
         size: function size() {
             return entries.size;
@@ -3920,6 +4022,9 @@ var index = {
             },
             getDecoration: function getDecoration(messageId) {
                 return decorations.get(messageId);
+            },
+            getByContent: function getByContent(content) {
+                return decorations.getByContent(content);
             },
             onError: function onError(error) {
                 diagnostics.recordError(error);

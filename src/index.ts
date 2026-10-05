@@ -134,6 +134,7 @@ export default {
         { caller: STORE_NAME },
       ),
       getDecoration: (messageId) => decorations.get(messageId),
+      getByContent: (content) => decorations.getByContent(content),
       onError: (error) => {
         diagnostics.recordError(error);
         console.warn('[Realtime Translator] Row render failed:', error);

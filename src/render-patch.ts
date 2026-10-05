@@ -46,6 +46,8 @@ interface RenderDependencies {
     callback: (args: any[], result: any) => any,
   ): () => void;
   getDecoration(messageId: string): Decoration | undefined;
+  /** Fallback lookup by message text, for a re-keyed message. */
+  getByContent?(content: string): Decoration | undefined;
   onError(error: unknown): void;
   /** Optional observer, used by the diagnostics report. */
   observe?: {
@@ -124,6 +126,7 @@ function alreadyDecorated(content: ContentNode[]): boolean {
 export function decorateRow(
   row: any,
   getDecoration: (messageId: string) => Decoration | undefined,
+  getByContent?: (content: string) => Decoration | undefined,
 ): boolean {
   // type 1 is a message row; anything else has no content to decorate.
   if (!row || row.type !== 1) return false;
@@ -136,12 +139,18 @@ export function decorateRow(
   if (!Array.isArray(content) || content.length === 0) return false;
   if (alreadyDecorated(content)) return false;
 
-  const decoration = getDecoration(messageId);
+  const text = contentToText(content).trim();
+
+  // By id first. On send, Discord re-keys an optimistic message from a local id
+  // to the server snowflake, so fall back to matching the text — otherwise the
+  // line appears and then vanishes the instant the swap lands.
+  let decoration = getDecoration(messageId);
+  if (!decoration?.line) decoration = getByContent?.(text);
   if (!decoration?.line) return false;
 
   // The row carries different text than what was translated: leave it alone
   // rather than label an edited message with a stale translation.
-  if (contentToText(content).trim() !== decoration.content.trim()) return false;
+  if (text !== decoration.content.trim()) return false;
 
   message.content = [...content, ...buildDecorationNodes(decoration.line)];
   return true;
@@ -151,12 +160,13 @@ export function decorateRow(
 export function decorateRows(
   rows: unknown,
   getDecoration: (messageId: string) => Decoration | undefined,
+  getByContent?: (content: string) => Decoration | undefined,
 ): number {
   if (!Array.isArray(rows)) return 0;
 
   let changed = 0;
   for (const row of rows) {
-    if (decorateRow(row, getDecoration)) changed += 1;
+    if (decorateRow(row, getDecoration, getByContent)) changed += 1;
   }
 
   return changed;
@@ -179,6 +189,7 @@ export function decorateRows(
 export function decoratePayload(
   args: any[],
   getDecoration: (messageId: string) => Decoration | undefined,
+  getByContent?: (content: string) => Decoration | undefined,
 ): number {
   let changed = 0;
 
@@ -196,7 +207,7 @@ export function decoratePayload(
         continue;
       }
 
-      const count = decorateAnyRows(parsed, getDecoration);
+      const count = decorateAnyRows(parsed, getDecoration, getByContent);
       if (count > 0) {
         args[index] = JSON.stringify(parsed);
         changed += count;
@@ -207,7 +218,7 @@ export function decoratePayload(
 
     // Forms 2 and 3: a live array of rows, or an object holding one. Mutated in
     // place, so no re-assignment is needed.
-    changed += decorateAnyRows(argument, getDecoration);
+    changed += decorateAnyRows(argument, getDecoration, getByContent);
   }
 
   return changed;
@@ -220,18 +231,19 @@ const ROW_KEYS = ['rows', 'data', 'items', 'messages', 'rowData'];
 function decorateAnyRows(
   value: unknown,
   getDecoration: (messageId: string) => Decoration | undefined,
+  getByContent?: (content: string) => Decoration | undefined,
 ): number {
-  if (Array.isArray(value)) return decorateRows(value, getDecoration);
+  if (Array.isArray(value)) return decorateRows(value, getDecoration, getByContent);
   if (!value || typeof value !== 'object') return 0;
 
   let changed = 0;
 
   // A single row passed on its own, as RowManager.generate returns.
-  if (decorateRow(value, getDecoration)) changed += 1;
+  if (decorateRow(value, getDecoration, getByContent)) changed += 1;
 
   for (const key of ROW_KEYS) {
     const nested = (value as any)[key];
-    if (Array.isArray(nested)) changed += decorateRows(nested, getDecoration);
+    if (Array.isArray(nested)) changed += decorateRows(nested, getDecoration, getByContent);
   }
 
   return changed;
@@ -266,7 +278,11 @@ export function createRenderController(
                 dependencies.observe?.call([result], where);
                 dependencies.observe?.parsed();
 
-                const count = decorateAnyRows(result, dependencies.getDecoration);
+                const count = decorateAnyRows(
+                  result,
+                  dependencies.getDecoration,
+                  dependencies.getByContent,
+                );
                 dependencies.observe?.decorated(count);
               } catch (error) {
                 dependencies.onError(error);
@@ -279,7 +295,11 @@ export function createRenderController(
               try {
                 dependencies.observe?.call(args, where);
 
-                const count = decoratePayload(args, dependencies.getDecoration);
+                const count = decoratePayload(
+                  args,
+                  dependencies.getDecoration,
+                  dependencies.getByContent,
+                );
                 if (count > 0) dependencies.observe?.parsed();
 
                 dependencies.observe?.decorated(count);

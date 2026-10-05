@@ -339,6 +339,22 @@ export function createRealtimeController(
     // Our own re-application dispatches MESSAGE_UPDATE; ignore that.
     if (!active || reconciling) return;
 
+    // On a successful send Discord swaps the optimistic local id for the
+    // server's snowflake. Re-key the decoration so the id lookup keeps working
+    // instead of relying on the content fallback.
+    const oldId = typeof event?.optimisticId === 'string'
+      ? event.optimisticId
+      : (typeof event?.nonce === 'string' ? event.nonce : null);
+    const newId = typeof event?.message?.id === 'string' ? event.message.id : null;
+
+    if (oldId && newId && oldId !== newId && dependencies.decorations) {
+      const carried = dependencies.decorations.get(oldId);
+      if (carried) {
+        dependencies.decorations.set(newId, carried);
+        dependencies.decorations.delete(oldId);
+      }
+    }
+
     const messageId = typeof event?.message?.id === 'string'
       ? event.message.id
       : (typeof event?.messageId === 'string' ? event.messageId : null);
