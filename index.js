@@ -26,7 +26,7 @@ function _object_spread$2(target) {
     }
     return target;
 }
-function _type_of$1(obj) {
+function _type_of$2(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -52,7 +52,7 @@ function normalizeLanguage(value) {
  */ function createChatConfig(store) {
     function readChats() {
         var chats = store.get('chats', {});
-        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$1(chats)) === 'object' ? chats : {};
+        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$2(chats)) === 'object' ? chats : {};
     }
     function patch(channelId, changes) {
         var _chats_channelId;
@@ -65,7 +65,7 @@ function normalizeLanguage(value) {
         for: function _for(channelId) {
             if (typeof channelId !== 'string' || !channelId) return DISABLED;
             var entry = readChats()[channelId];
-            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$1(entry)) !== 'object') return DISABLED;
+            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$2(entry)) !== 'object') return DISABLED;
             return {
                 incoming: entry.incoming === true,
                 outgoing: entry.outgoing === true,
@@ -110,13 +110,13 @@ function normalizeLanguage(value) {
             });
         }
     };
-}function _array_like_to_array$3(arr, len) {
+}function _array_like_to_array$5(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$2(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
+function _array_without_holes$4(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$5(arr);
 }
 function asyncGeneratorStep$2(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -161,12 +161,12 @@ function _instanceof(left, right) {
         return !!right[Symbol.hasInstance](left);
     } else return left instanceof right;
 }
-function _iterable_to_array$2(iter) {
+function _iterable_to_array$4(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$2() {
+function _non_iterable_spread$4() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread$1(target) {
@@ -202,8 +202,8 @@ function _object_spread_props$1(target, source) {
     }
     return target;
 }
-function _to_consumable_array$2(arr) {
-    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$2();
+function _to_consumable_array$4(arr) {
+    return _array_without_holes$4(arr) || _iterable_to_array$4(arr) || _unsupported_iterable_to_array$5(arr) || _non_iterable_spread$4();
 }
 function _ts_generator$2(thisArg, body) {
     var f, y, t, _ = {
@@ -304,13 +304,13 @@ function _ts_generator$2(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array$3(o, minLen) {
+function _unsupported_iterable_to_array$5(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$5(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$5(o, minLen);
 }
 var TRANSLATION_MARKER = '\n-# ↳ English: ';
 function toPlainMessage(message) {
@@ -543,7 +543,7 @@ function createRealtimeController(dependencies) {
         var _historyQueue;
         if (!active || !Array.isArray(messages) || messages.length === 0) return;
         var workGeneration = generation;
-        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$2(messages));
+        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$4(messages));
         void processHistoryQueue(workGeneration);
     }
     var onHistoryLoaded = function onHistoryLoaded(event) {
@@ -642,7 +642,7 @@ function createRealtimeController(dependencies) {
             restoreMessages();
         }
     };
-}function _type_of(obj) {
+}function _type_of$1(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -718,7 +718,7 @@ function maskTokens(input) {
     var restored = text;
     for(var index = 0; index < tokens.length; index += 1){
         var _ret = _loop(index);
-        if (_type_of(_ret) === "object") return _ret.v;
+        if (_type_of$1(_ret) === "object") return _ret.v;
     }
     if (restored.includes(SENTINEL)) return null;
     return restored;
@@ -731,7 +731,7 @@ function maskTokens(input) {
     var text = maskTokens(trimmed).text;
     var withoutSentinels = text.replace(new RegExp("".concat(SENTINEL, "\\d+").concat(SENTINEL), 'g'), '');
     return /[A-Za-z\u00C0-\u02FF\u0370-\u1FFF]/.test(withoutSentinels);
-}function _array_like_to_array$2(arr, len) {
+}function _array_like_to_array$4(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
@@ -767,15 +767,15 @@ function _non_iterable_rest() {
     throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _sliced_to_array(arr, i) {
-    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$2(arr, i) || _non_iterable_rest();
+    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$4(arr, i) || _non_iterable_rest();
 }
-function _unsupported_iterable_to_array$2(o, minLen) {
+function _unsupported_iterable_to_array$4(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$4(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$4(o, minLen);
 }
 /**
  * Text-triggered configuration, handled inside the send patch.
@@ -946,13 +946,13 @@ function help() {
         handled: true,
         reply: "Unknown option `".concat(rawCommand, "`.\n\n").concat(help())
     };
-}function _array_like_to_array$1(arr, len) {
+}function _array_like_to_array$3(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$1(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$1(arr);
+function _array_without_holes$3(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
 }
 function asyncGeneratorStep$1(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -991,12 +991,12 @@ function _define_property(obj, key, value) {
     } else obj[key] = value;
     return obj;
 }
-function _iterable_to_array$1(iter) {
+function _iterable_to_array$3(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$1() {
+function _non_iterable_spread$3() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread(target) {
@@ -1032,8 +1032,8 @@ function _object_spread_props(target, source) {
     }
     return target;
 }
-function _to_consumable_array$1(arr) {
-    return _array_without_holes$1(arr) || _iterable_to_array$1(arr) || _unsupported_iterable_to_array$1(arr) || _non_iterable_spread$1();
+function _to_consumable_array$3(arr) {
+    return _array_without_holes$3(arr) || _iterable_to_array$3(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$3();
 }
 function _ts_generator$1(thisArg, body) {
     var f, y, t, _ = {
@@ -1134,13 +1134,13 @@ function _ts_generator$1(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array$1(o, minLen) {
+function _unsupported_iterable_to_array$3(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$1(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$1(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
 }
 var MAX_TRACKED_MESSAGES = 500;
 function contentOf(message) {
@@ -1167,6 +1167,7 @@ function generateNonce() {
     var byMessageId = new Map();
     var unpatch;
     var active = false;
+    var patchedFunction;
     function remember(messageId, record) {
         byMessageId.set(messageId, record);
         while(byMessageId.size > MAX_TRACKED_MESSAGES){
@@ -1214,14 +1215,16 @@ function generateNonce() {
     }
     return {
         start: function start() {
+            var _dependencies_messages, _dependencies_messages1;
             if (active) return;
             active = true;
+            var before = (_dependencies_messages = dependencies.messages) === null || _dependencies_messages === void 0 ? void 0 : _dependencies_messages.sendMessage;
             unpatch = dependencies.patchInstead(dependencies.messages, 'sendMessage', function(ctx) {
                 var _ctx, _ctx1, _ctx2;
                 var args = ctx.args;
                 var channelId = typeof args[0] === 'string' ? args[0] : null;
                 var message = args[1];
-                if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$1(args));
+                if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args));
                 var english = contentOf(message);
                 // Configuration triggers are swallowed: never sent, never translated.
                 // Checked before the per-chat gate so a chat can be switched on from
@@ -1233,8 +1236,8 @@ function generateNonce() {
                     return undefined;
                 }
                 var config = dependencies.config.for(channelId);
-                if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$1(args));
-                if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$1(args));
+                if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(args));
+                if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$3(args));
                 var language = config.outgoingLanguage;
                 // The send becomes asynchronous: translate first, then hand the
                 // rewritten message to Discord's original implementation.
@@ -1275,7 +1278,7 @@ function generateNonce() {
                                 case 4:
                                     if (sent === english) return [
                                         2,
-                                        (_ctx = ctx).original.apply(_ctx, _to_consumable_array$1(args))
+                                        (_ctx = ctx).original.apply(_ctx, _to_consumable_array$3(args))
                                     ];
                                     nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
                                     outgoing = _object_spread_props(_object_spread({}, message), {
@@ -1289,7 +1292,7 @@ function generateNonce() {
                                         language: language
                                     };
                                     pendingByNonce.set(nonce, record);
-                                    nextArgs = _to_consumable_array$1(args);
+                                    nextArgs = _to_consumable_array$3(args);
                                     nextArgs[1] = outgoing;
                                     _state.label = 5;
                                 case 5:
@@ -1301,7 +1304,7 @@ function generateNonce() {
                                     ]);
                                     return [
                                         4,
-                                        (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$1(nextArgs))
+                                        (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$3(nextArgs))
                                     ];
                                 case 6:
                                     return [
@@ -1321,14 +1324,29 @@ function generateNonce() {
                     })();
                 }();
             });
+            // The patcher swaps the prop; if it still holds the same function, the
+            // write was swallowed (lazy proxy) and nothing is intercepted.
+            patchedFunction = (_dependencies_messages1 = dependencies.messages) === null || _dependencies_messages1 === void 0 ? void 0 : _dependencies_messages1.sendMessage;
+            if (patchedFunction === before) {
+                active = false;
+                unpatch === null || unpatch === void 0 ? void 0 : unpatch();
+                unpatch = undefined;
+            }
         },
         stop: function stop() {
             if (!active) return;
             active = false;
             unpatch === null || unpatch === void 0 ? void 0 : unpatch();
             unpatch = undefined;
+            patchedFunction = undefined;
             pendingByNonce.clear();
             byMessageId.clear();
+        },
+        isActive: function isActive() {
+            var _dependencies_messages;
+            if (!active) return false;
+            // Another plugin or a reload may have restored the original since start.
+            return ((_dependencies_messages = dependencies.messages) === null || _dependencies_messages === void 0 ? void 0 : _dependencies_messages.sendMessage) === patchedFunction;
         },
         englishFor: function englishFor(messageId) {
             return byMessageId.get(messageId);
@@ -1344,32 +1362,32 @@ function generateNonce() {
             return pendingByNonce.size;
         }
     };
-}function _array_like_to_array(arr, len) {
+}function _array_like_to_array$2(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array(arr);
+function _array_without_holes$2(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$2(arr);
 }
-function _iterable_to_array(iter) {
+function _iterable_to_array$2(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread() {
+function _non_iterable_spread$2() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _to_consumable_array(arr) {
-    return _array_without_holes(arr) || _iterable_to_array(arr) || _unsupported_iterable_to_array(arr) || _non_iterable_spread();
+function _to_consumable_array$2(arr) {
+    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$2(arr) || _non_iterable_spread$2();
 }
-function _unsupported_iterable_to_array(o, minLen) {
+function _unsupported_iterable_to_array$2(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
 }
 /** Discord's own enum values; BUILT_IN keeps the command client-side. */ var APPLICATION_COMMAND_TYPE_CHAT = 1;
 var APPLICATION_COMMAND_INPUT_TYPE_BUILT_IN = 0;
@@ -1451,7 +1469,7 @@ function formatStatus(config, channelId) {
             }).filter(function(value) {
                 return Number.isFinite(value);
             });
-            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array(ids)) : 0;
+            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array$2(ids)) : 0;
             // Stay strictly negative so we can never shadow a Discord command id.
             return String(Math.min(lowest, 0) - 1);
         } catch (unused) {
@@ -1598,7 +1616,7 @@ function formatStatus(config, channelId) {
                 var matches = function matches(command) {
                     return Array.isArray(requestedType) ? requestedType.includes(command.type) : requestedType === command.type;
                 };
-                return _to_consumable_array(result).concat(_to_consumable_array(registered.filter(matches)));
+                return _to_consumable_array$2(result).concat(_to_consumable_array$2(registered.filter(matches)));
             });
         },
         stop: function stop() {
@@ -1610,6 +1628,121 @@ function formatStatus(config, channelId) {
             return registered;
         }
     };
+}/**
+ * Unbound exposes Discord modules through `lazy()` proxies.
+ *
+ * That proxy forwards `get`/`set`/`has`/`ownKeys` to the real module but has no
+ * `defineProperty` trap, so `Object.defineProperty` — which is how the patcher
+ * installs a patch — lands on the proxy's empty backing object instead of the
+ * module. The patch then silently does nothing: no error, no interception.
+ *
+ * Reading any property forces the proxy to resolve, so re-finding the module
+ * through metro yields the real object, which can be patched.
+ */ function _array_like_to_array$1(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_without_holes$1(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$1(arr);
+}
+function _iterable_to_array$1(iter) {
+    if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
+        return Array.from(iter);
+    }
+}
+function _non_iterable_spread$1() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _to_consumable_array$1(arr) {
+    return _array_without_holes$1(arr) || _iterable_to_array$1(arr) || _unsupported_iterable_to_array$1(arr) || _non_iterable_spread$1();
+}
+function _type_of(obj) {
+    "@swc/helpers - typeof";
+    return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
+}
+function _unsupported_iterable_to_array$1(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array$1(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$1(o, minLen);
+}
+/**
+ * Resolves a patchable reference to a Discord module.
+ *
+ * @param candidate The possibly-proxied module (e.g. `metro.api.Messages`).
+ * @param props Properties identifying the module, for re-resolution.
+ * @returns A directly patchable object.
+ * @throws When no object exposing every prop as a function can be found.
+ */ function resolvePatchTarget(candidate, props, dependencies) {
+    // Touch a prop so a lazy proxy resolves and metro's cache is warm.
+    var reachable = function reachable(value) {
+        if (!value || (typeof value === "undefined" ? "undefined" : _type_of(value)) !== 'object' && typeof value !== 'function') return false;
+        return props.every(function(prop) {
+            return typeof value[prop] === 'function';
+        });
+    };
+    var viaCandidate = function() {
+        try {
+            return reachable(candidate) ? candidate : null;
+        } catch (unused) {
+            return null;
+        }
+    }();
+    // A direct metro lookup returns the module itself rather than a proxy.
+    var direct = null;
+    try {
+        var _dependencies;
+        direct = (_dependencies = dependencies).findByProps.apply(_dependencies, _to_consumable_array$1(props));
+    } catch (unused) {
+        direct = null;
+    }
+    if (reachable(direct) && isPatchable(direct, props[0])) return direct;
+    if (viaCandidate && isPatchable(viaCandidate, props[0])) return viaCandidate;
+    if (reachable(direct)) return direct;
+    if (viaCandidate) return viaCandidate;
+    throw new Error("Could not resolve a patchable module for: ".concat(props.join(', ')));
+}
+/**
+ * Checks that `Object.defineProperty` actually takes on this object.
+ *
+ * A lazy proxy accepts the call and discards it, so the only reliable test is
+ * to write a sentinel and read it back.
+ */ function isPatchable(target, prop) {
+    var original = target === null || target === void 0 ? void 0 : target[prop];
+    if (typeof original !== 'function') return false;
+    var sentinel = function sentinel() {};
+    try {
+        Object.defineProperty(target, prop, {
+            value: sentinel,
+            configurable: true,
+            enumerable: true,
+            writable: true
+        });
+        var applied = target[prop] === sentinel;
+        // Always restore, whether or not the write took.
+        Object.defineProperty(target, prop, {
+            value: original,
+            configurable: true,
+            enumerable: true,
+            writable: true
+        });
+        return applied;
+    } catch (unused) {
+        try {
+            Object.defineProperty(target, prop, {
+                value: original,
+                configurable: true,
+                enumerable: true,
+                writable: true
+            });
+        } catch (unused) {
+        // Nothing further can be done; report unpatchable.
+        }
+        return false;
+    }
 }function toMessageArray(messages) {
     if (Array.isArray(messages)) return messages;
     if (Array.isArray(messages === null || messages === void 0 ? void 0 : messages._array)) return messages._array;
@@ -2020,7 +2153,34 @@ function createTranslationClient() {
             }
         }));
     });
-}var controller;
+}function _array_like_to_array(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_without_holes(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array(arr);
+}
+function _iterable_to_array(iter) {
+    if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
+        return Array.from(iter);
+    }
+}
+function _non_iterable_spread() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _to_consumable_array(arr) {
+    return _array_without_holes(arr) || _iterable_to_array(arr) || _unsupported_iterable_to_array(arr) || _non_iterable_spread();
+}
+function _unsupported_iterable_to_array(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array(o, minLen);
+}
+var controller;
 var outgoing;
 var commands;
 function warn(message) {
@@ -2054,13 +2214,24 @@ function warn(message) {
 }
 var index = {
     start: function start() {
+        var _metro, _metro1;
         if (controller) return;
         var translator = createTranslationClient();
         var config = createChatConfig(window.unbound.storage.getStore(STORE_NAME));
         var messageStore = window.unbound.metro.findStore('Message');
         var selectedChannelStore = window.unbound.metro.findStore('SelectedChannel');
         outgoing = createOutgoingController({
-            messages: window.unbound.metro.api.Messages,
+            messages: resolvePatchTarget(window.unbound.metro.api.Messages, [
+                'sendMessage',
+                'receiveMessage'
+            ], {
+                findByProps: function findByProps() {
+                    for(var _len = arguments.length, props = new Array(_len), _key = 0; _key < _len; _key++){
+                        props[_key] = arguments[_key];
+                    }
+                    return (_metro = window.unbound.metro).findByProps.apply(_metro, _to_consumable_array(props));
+                }
+            }),
             config: config,
             translate: function translate(text, options) {
                 return translator.translate(text, options);
@@ -2100,7 +2271,16 @@ var index = {
             }
         });
         commands = createCommandController({
-            commands: window.unbound.metro.common.Commands,
+            commands: resolvePatchTarget(window.unbound.metro.common.Commands, [
+                'getBuiltInCommands'
+            ], {
+                findByProps: function findByProps() {
+                    for(var _len = arguments.length, props = new Array(_len), _key = 0; _key < _len; _key++){
+                        props[_key] = arguments[_key];
+                    }
+                    return (_metro1 = window.unbound.metro).findByProps.apply(_metro1, _to_consumable_array(props));
+                }
+            }),
             config: config,
             patchAfter: function patchAfter(parent, method, callback) {
                 return window.unbound.patcher.after(parent, method, function(ctx) {
@@ -2113,6 +2293,12 @@ var index = {
         });
         outgoing.start();
         controller.start();
+        // Prove the send patch actually took. A lazy proxy silently swallows
+        // Object.defineProperty, so "no error" is not evidence of success.
+        if (!outgoing.isActive()) {
+            warn('Translator: could not hook sending. Nothing will translate.');
+            console.warn('[Realtime Translator] sendMessage patch did not apply.' + ' Outgoing translation and !tr are both inactive.');
+        }
         // Slash commands are a convenience: Discord's command registry does not
         // resolve on every build, and the patcher throws when the target is not a
         // function. Never let that take translation down with it.

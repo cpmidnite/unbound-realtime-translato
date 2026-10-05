@@ -34,6 +34,8 @@ interface OutgoingDependencies {
 export interface OutgoingController {
   start(): void;
   stop(): void;
+  /** True only when the send patch verifiably replaced sendMessage. */
+  isActive(): boolean;
   /** English text for one of your own sent messages, if it was translated. */
   englishFor(messageId: string): OutgoingRecord | undefined;
   /** Binds a pending nonce to the server-assigned message id. */
@@ -73,6 +75,7 @@ export function createOutgoingController(
   const byMessageId = new Map<string, OutgoingRecord>();
   let unpatch: (() => void) | undefined;
   let active = false;
+  let patchedFunction: unknown;
 
   function remember(messageId: string, record: OutgoingRecord): void {
     byMessageId.set(messageId, record);
@@ -111,6 +114,8 @@ export function createOutgoingController(
     start(): void {
       if (active) return;
       active = true;
+
+      const before = (dependencies.messages as any)?.sendMessage;
 
       unpatch = dependencies.patchInstead(
         dependencies.messages,
@@ -173,6 +178,15 @@ export function createOutgoingController(
           })();
         },
       );
+
+      // The patcher swaps the prop; if it still holds the same function, the
+      // write was swallowed (lazy proxy) and nothing is intercepted.
+      patchedFunction = (dependencies.messages as any)?.sendMessage;
+      if (patchedFunction === before) {
+        active = false;
+        unpatch?.();
+        unpatch = undefined;
+      }
     },
 
     stop(): void {
@@ -180,8 +194,15 @@ export function createOutgoingController(
       active = false;
       unpatch?.();
       unpatch = undefined;
+      patchedFunction = undefined;
       pendingByNonce.clear();
       byMessageId.clear();
+    },
+
+    isActive(): boolean {
+      if (!active) return false;
+      // Another plugin or a reload may have restored the original since start.
+      return (dependencies.messages as any)?.sendMessage === patchedFunction;
     },
 
     englishFor(messageId: string): OutgoingRecord | undefined {

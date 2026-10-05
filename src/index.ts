@@ -4,6 +4,7 @@ import { createChatConfig, STORE_NAME } from './config';
 import { createRealtimeController, type RealtimeController } from './controller';
 import { createOutgoingController, type OutgoingController } from './outgoing';
 import { createCommandController, type CommandController } from './commands';
+import { resolvePatchTarget } from './patch-target';
 import { getSelectedChannelMessages } from './messages';
 import { createTranslationClient } from './translation';
 import { buildSettingsPanel } from './settings-panel';
@@ -46,7 +47,11 @@ export default {
     const selectedChannelStore = metro.findStore('SelectedChannel');
 
     outgoing = createOutgoingController({
-      messages: metro.api.Messages,
+      messages: resolvePatchTarget(
+        metro.api.Messages,
+        ['sendMessage', 'receiveMessage'],
+        { findByProps: (...props: string[]) => metro.findByProps(...props) },
+      ),
       config,
       translate: (text, options) => translator.translate(text, options),
       patchInstead: (parent, method, callback) => patcher.instead(
@@ -76,7 +81,11 @@ export default {
     });
 
     commands = createCommandController({
-      commands: metro.common.Commands,
+      commands: resolvePatchTarget(
+        metro.common.Commands,
+        ['getBuiltInCommands'],
+        { findByProps: (...props: string[]) => metro.findByProps(...props) },
+      ),
       config,
       patchAfter: (parent, method, callback) => patcher.after(
         parent,
@@ -89,6 +98,16 @@ export default {
 
     outgoing.start();
     controller.start();
+
+    // Prove the send patch actually took. A lazy proxy silently swallows
+    // Object.defineProperty, so "no error" is not evidence of success.
+    if (!outgoing.isActive()) {
+      warn('Translator: could not hook sending. Nothing will translate.');
+      console.warn(
+        '[Realtime Translator] sendMessage patch did not apply.'
+        + ' Outgoing translation and !tr are both inactive.',
+      );
+    }
 
     // Slash commands are a convenience: Discord's command registry does not
     // resolve on every build, and the patcher throws when the target is not a

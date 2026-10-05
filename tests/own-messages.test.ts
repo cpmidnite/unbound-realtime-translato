@@ -59,6 +59,7 @@ function harness(options: {
     outgoing: {
       start() {},
       stop() {},
+      isActive: () => true,
       pendingNonces: () => 0,
       englishFor: (messageId: string) => records[messageId],
       resolveNonce: (nonce: string, messageId: string) => {

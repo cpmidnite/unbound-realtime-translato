@@ -46,6 +46,7 @@ function harness(options: {
   const config = createChatConfig(memoryStore());
   let patched: ((ctx: any) => any) | undefined;
   let unpatched = false;
+  const rawSend = messages.sendMessage.bind(messages);
 
   const controller = createOutgoingController({
     messages,
@@ -59,7 +60,17 @@ function harness(options: {
       expect(parent).toBe(messages);
       expect(method).toBe('sendMessage');
       patched = callback;
-      return () => { unpatched = true; };
+
+      // Mirror the real patcher: replace the prop so isActive() can verify.
+      const original = (parent as any)[method];
+      (parent as any)[method] = function patchedSend(...args: any[]) {
+        return callback({ args, original });
+      };
+
+      return () => {
+        unpatched = true;
+        (parent as any)[method] = original;
+      };
     },
     onError: (error) => errors.push(error),
     onFallback: (reason) => fallbacks.push(reason),
@@ -81,7 +92,8 @@ function harness(options: {
       const args = [channelId, message, ...rest];
       return patched!({
         args,
-        original: (...called: any[]) => messages.sendMessage(
+        // The real original, never the patched prop, to avoid double-routing.
+        original: (...called: any[]) => rawSend(
           called[0],
           called[1],
           ...called.slice(2),
@@ -263,6 +275,41 @@ describe('outgoing translation', () => {
 });
 
 describe('text triggers through the send patch', () => {
+  test('reports active when the patch verifiably replaced sendMessage', () => {
+    const h = harness();
+    h.controller.start();
+
+    expect(h.controller.isActive()).toBe(true);
+
+    h.controller.stop();
+    expect(h.controller.isActive()).toBe(false);
+  });
+
+  test('reports inactive when the patch was silently swallowed', () => {
+    const sent: any[] = [];
+    const messages = {
+      sendMessage(channelId: string, message: any) {
+        sent.push({ channelId, message });
+        return { ok: true };
+      },
+    };
+    const config = createChatConfig(memoryStore());
+
+    const controller = createOutgoingController({
+      messages,
+      config,
+      translate: async () => null,
+      // A no-op patcher stands in for the lazy-proxy case: the callback is
+      // registered but sendMessage is never actually replaced.
+      patchInstead: () => () => {},
+      onError: () => {},
+    });
+
+    controller.start();
+
+    expect(controller.isActive()).toBe(false);
+  });
+
   test('a trigger is never sent to the chat', async () => {
     const h = harness();
     h.controller.start();
