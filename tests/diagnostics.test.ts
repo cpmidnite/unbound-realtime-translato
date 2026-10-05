@@ -1,86 +1,119 @@
 import { describe, expect, test } from 'bun:test';
 
 import { createDiagnostics, describePayload } from '../src/diagnostics';
-import { findChatModule } from '../src/find-chat-module';
+import { collectChatModules } from '../src/find-chat-module';
 
 describe('chat module discovery', () => {
-  test('finds a module by a known name and reports which one matched', () => {
+  test('collects a module found by a known name', () => {
     const module = { updateRows: () => {}, other: () => {} };
 
-    const found = findChatModule({
+    const found = collectChatModules({
       getNativeModule: (name: string) => (name === 'DCDChatManager' ? module : undefined),
     });
 
-    expect(found?.name).toBe('DCDChatManager');
-    expect(found?.method).toBe('updateRows');
-    expect(found?.module).toBe(module);
-    expect(found?.methods).toContain('updateRows');
+    expect(found).toHaveLength(1);
+    expect(found[0]!.name).toBe('DCDChatManager');
+    expect(found[0]!.method).toBe('updateRows');
+    expect(found[0]!.module).toBe(module);
+    expect(found[0]!.source).toBe('getNativeModule');
   });
 
-  test('prefers the first known name that matches', () => {
-    const first = { updateRows: () => {} };
-    const second = { updateRows: () => {} };
+  test('collects the SAME module once, from whichever route reaches it', () => {
+    const shared = { updateRows: () => {} };
 
-    const found = findChatModule({
-      getNativeModule: (name: string) => {
-        if (name === 'NativeChatModule') return first;
-        if (name === 'DCDChatManager') return second;
-        return undefined;
-      },
+    const found = collectChatModules({
+      getNativeModule: () => shared,
+      nativeModuleProxy: { NativeChatModule: shared },
+      nativeModules: { NativeChatModule: shared },
     });
 
-    expect(found?.module).toBe(first);
+    expect(found).toHaveLength(1);
+  });
+
+  test('collects DISTINCT objects from different routes', () => {
+    // This is the case that mattered: a patch on one object never fires because
+    // Discord calls a different one.
+    const viaHelper = { updateRows: () => {} };
+    const viaProxy = { updateRows: () => {} };
+    const viaModules = { updateRows: () => {} };
+
+    const found = collectChatModules({
+      getNativeModule: () => viaHelper,
+      nativeModuleProxy: { NativeChatModule: viaProxy },
+      nativeModules: { NativeChatModule: viaModules },
+    });
+
+    expect(found).toHaveLength(3);
+    expect(found.map((c) => c.source)).toEqual([
+      'getNativeModule',
+      'nativeModuleProxy',
+      'NativeModules',
+    ]);
+  });
+
+  test('includes the TurboModuleRegistry instance', () => {
+    const turbo = { updateRows: () => {} };
+
+    const found = collectChatModules({
+      turboModuleRegistry: { get: () => turbo },
+    });
+
+    expect(found).toHaveLength(1);
+    expect(found[0]!.source).toBe('TurboModuleRegistry');
+  });
+
+  test('also collects a constructor prototype', () => {
+    class ChatManagerClass {
+      updateRows() {}
+    }
+
+    const found = collectChatModules({
+      getNativeModule: () => ChatManagerClass,
+    });
+
+    expect(found.map((c) => c.source)).toEqual([
+      'getNativeModule.prototype',
+    ]);
   });
 
   test('accepts an alternative row-update method name', () => {
-    const module = { setRows: () => {} };
-
-    const found = findChatModule({
-      getNativeModule: () => module,
-    });
-
-    expect(found?.method).toBe('setRows');
+    const found = collectChatModules({ getNativeModule: () => ({ setRows: () => {} }) });
+    expect(found[0]!.method).toBe('setRows');
   });
 
   test('falls back to scanning module maps for a chat-like module', () => {
     const module = { updateRows: () => {} };
 
-    const found = findChatModule({
-      getNativeModule: () => undefined,
-      moduleMaps: [{
+    const found = collectChatModules({
+      nativeModuleProxy: {
         SomeUnrelatedModule: { doThing: () => {} },
         DCDChatManagerExperimental: module,
-      }],
-    });
-
-    expect(found?.name).toBe('DCDChatManagerExperimental');
-    expect(found?.module).toBe(module);
-  });
-
-  test('ignores unrelated modules while scanning', () => {
-    const found = findChatModule({
-      getNativeModule: () => undefined,
-      moduleMaps: [{ AudioManager: { updateRows: () => {} } }],
-    });
-
-    expect(found).toBeNull();
-  });
-
-  test('returns null when nothing plausible exists', () => {
-    expect(findChatModule({ getNativeModule: () => undefined })).toBeNull();
-    expect(findChatModule({
-      getNativeModule: () => ({ unrelated: () => {} }),
-    })).toBeNull();
-  });
-
-  test('survives a throwing lookup', () => {
-    const found = findChatModule({
-      getNativeModule: () => {
-        throw new Error('bridge not ready');
       },
     });
 
-    expect(found).toBeNull();
+    expect(found[0]!.name).toBe('DCDChatManagerExperimental');
+  });
+
+  test('ignores unrelated modules while scanning', () => {
+    expect(collectChatModules({
+      nativeModuleProxy: { AudioManager: { updateRows: () => {} } },
+    })).toHaveLength(0);
+  });
+
+  test('returns nothing when no candidate exists', () => {
+    expect(collectChatModules({})).toHaveLength(0);
+    expect(collectChatModules({
+      getNativeModule: () => ({ unrelated: () => {} }),
+    })).toHaveLength(0);
+  });
+
+  test('survives throwing lookups', () => {
+    const found = collectChatModules({
+      getNativeModule: () => { throw new Error('bridge not ready'); },
+      turboModuleRegistry: { get: () => { throw new Error('nope'); } },
+    });
+
+    expect(found).toHaveLength(0);
   });
 });
 
@@ -144,6 +177,9 @@ describe('diagnostics report', () => {
     const d = createDiagnostics();
     d.setChatModule(true, 'DCDChatManager', ['updateRows']);
     d.setRenderPatched(true);
+    d.addPatchSite('getNativeModule/DCDChatManager.updateRows');
+    d.addPatchSite('nativeModuleProxy/DCDChatManager.updateRows');
+    d.setFiringSite('nativeModuleProxy/DCDChatManager.updateRows');
     d.setSendPatched(true);
     d.countRenderCall();
     d.countParsedPayload();
@@ -158,6 +194,8 @@ describe('diagnostics report', () => {
 
     expect(report).toContain('found as `DCDChatManager`');
     expect(report).toContain('Render patch: active');
+    expect(report).toContain('Patched 2 reference(s)');
+    expect(report).toContain('Firing site: `nativeModuleProxy/DCDChatManager.updateRows`');
     expect(report).toContain('Send patch: active');
     expect(report).toContain('Rows decorated: 2');
     expect(report).toContain('Translations held: 3');

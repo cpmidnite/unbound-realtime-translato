@@ -32,10 +32,8 @@ export interface Decoration {
 type ContentNode = Record<string, any>;
 
 interface RenderDependencies {
-  /** Native chat module exposing a row-update method. */
-  chatModule: any;
-  /** Method on that module which receives the rows. */
-  method?: string;
+  /** Every reachable reference to patch. */
+  candidates?: Array<{ source: string; name: string; module: any; method: string }>;
   patchBefore(
     parent: any,
     method: string,
@@ -45,7 +43,8 @@ interface RenderDependencies {
   onError(error: unknown): void;
   /** Optional observer, used by the diagnostics report. */
   observe?: {
-    call(args: any[]): void;
+    patched(where: string): void;
+    call(args: any[], where: string): void;
     parsed(): void;
     decorated(count: number): void;
   };
@@ -160,55 +159,73 @@ export function decorateRows(
 export function createRenderController(
   dependencies: RenderDependencies,
 ): RenderController {
-  let unpatch: (() => void) | undefined;
+  const unpatches: Array<() => void> = [];
 
   return {
     start(): boolean {
-      if (unpatch) return true;
+      if (unpatches.length) return true;
 
-      const target = dependencies.chatModule;
-      const method = dependencies.method ?? 'updateRows';
-      if (!target || typeof target[method] !== 'function') return false;
+      // Patch EVERY reachable reference. One of them is the object Discord
+      // actually calls; patching only the first produced an installed patch
+      // that never fired.
+      for (const candidate of dependencies.candidates ?? []) {
+        const { module, method, source, name } = candidate;
 
-      const before = target[method];
-
-      unpatch = dependencies.patchBefore(target, method, (args) => {
-        // Never throw: this call renders the message list.
         try {
-          dependencies.observe?.call(args);
+          if (typeof module?.[method] !== 'function') continue;
 
-          const raw = args[1];
-          if (typeof raw !== 'string') return;
+          const before = module[method];
 
-          const rows = JSON.parse(raw);
-          dependencies.observe?.parsed();
+          const unpatch = dependencies.patchBefore(module, method, (args) => {
+            // Never throw: this call renders the message list.
+            try {
+              dependencies.observe?.call(args, `${source}/${name}.${method}`);
 
-          const changed = decorateRows(rows, dependencies.getDecoration);
-          dependencies.observe?.decorated(changed);
+              const raw = args[1];
+              if (typeof raw !== 'string') return;
 
-          if (changed > 0) args[1] = JSON.stringify(rows);
+              const rows = JSON.parse(raw);
+              dependencies.observe?.parsed();
+
+              const changed = decorateRows(rows, dependencies.getDecoration);
+              dependencies.observe?.decorated(changed);
+
+              if (changed > 0) args[1] = JSON.stringify(rows);
+            } catch (error) {
+              dependencies.onError(error);
+            }
+          });
+
+          // A lazy proxy swallows defineProperty silently; confirm the swap.
+          if (module[method] === before) {
+            unpatch();
+            continue;
+          }
+
+          unpatches.push(unpatch);
+          dependencies.observe?.patched(`${source}/${name}.${method}`);
         } catch (error) {
           dependencies.onError(error);
         }
-      });
-
-      // A lazy proxy swallows defineProperty silently; confirm the swap took.
-      if (target[method] === before) {
-        unpatch();
-        unpatch = undefined;
-        return false;
       }
 
-      return true;
+      return unpatches.length > 0;
     },
 
     stop(): void {
-      unpatch?.();
-      unpatch = undefined;
+      for (const unpatch of unpatches) {
+        try {
+          unpatch();
+        } catch {
+          // ignore
+        }
+      }
+
+      unpatches.length = 0;
     },
 
     isActive(): boolean {
-      return Boolean(unpatch);
+      return unpatches.length > 0;
     },
   };
 }

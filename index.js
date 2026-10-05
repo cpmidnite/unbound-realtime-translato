@@ -908,10 +908,10 @@ function maskTokens(input) {
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_with_holes(arr) {
+function _array_with_holes$1(arr) {
     if (Array.isArray(arr)) return arr;
 }
-function _iterable_to_array_limit(arr, i) {
+function _iterable_to_array_limit$1(arr, i) {
     var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"];
     if (_i == null) return;
     var _arr = [];
@@ -935,11 +935,11 @@ function _iterable_to_array_limit(arr, i) {
     }
     return _arr;
 }
-function _non_iterable_rest() {
+function _non_iterable_rest$1() {
     throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _sliced_to_array(arr, i) {
-    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$6(arr, i) || _non_iterable_rest();
+function _sliced_to_array$1(arr, i) {
+    return _array_with_holes$1(arr) || _iterable_to_array_limit$1(arr, i) || _unsupported_iterable_to_array$6(arr, i) || _non_iterable_rest$1();
 }
 function _unsupported_iterable_to_array$6(o, minLen) {
     if (!o) return;
@@ -1044,7 +1044,7 @@ function help() {
             reply: "".concat(describe(config, channelId), "\n\n`!tr help` for options.")
         };
     }
-    var _parts = _sliced_to_array(parts, 2), rawCommand = _parts[0], rawValue = _parts[1];
+    var _parts = _sliced_to_array$1(parts, 2), rawCommand = _parts[0], rawValue = _parts[1];
     var command = rawCommand.toLocaleLowerCase();
     if (command === 'debug' || command === 'diag') {
         var _ref;
@@ -2044,45 +2044,96 @@ function alreadyDecorated(content) {
     return changed;
 }
 function createRenderController(dependencies) {
-    var unpatch;
+    var unpatches = [];
     return {
         start: function start() {
-            var _dependencies_method;
-            if (unpatch) return true;
-            var target = dependencies.chatModule;
-            var method = (_dependencies_method = dependencies.method) !== null && _dependencies_method !== void 0 ? _dependencies_method : 'updateRows';
-            if (!target || typeof target[method] !== 'function') return false;
-            var before = target[method];
-            unpatch = dependencies.patchBefore(target, method, function(args) {
-                // Never throw: this call renders the message list.
+            var _dependencies_candidates;
+            if (unpatches.length) return true;
+            var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+            try {
+                var _loop = function() {
+                    var candidate = _step.value;
+                    var module = candidate.module, method = candidate.method, source = candidate.source, name = candidate.name;
+                    try {
+                        var _dependencies_observe;
+                        if (typeof (module === null || module === void 0 ? void 0 : module[method]) !== 'function') return "continue";
+                        var before = module[method];
+                        var unpatch = dependencies.patchBefore(module, method, function(args) {
+                            // Never throw: this call renders the message list.
+                            try {
+                                var _dependencies_observe, _dependencies_observe1, _dependencies_observe2;
+                                (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.call(args, "".concat(source, "/").concat(name, ".").concat(method));
+                                var raw = args[1];
+                                if (typeof raw !== 'string') return;
+                                var rows = JSON.parse(raw);
+                                (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
+                                var changed = decorateRows(rows, dependencies.getDecoration);
+                                (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(changed);
+                                if (changed > 0) args[1] = JSON.stringify(rows);
+                            } catch (error) {
+                                dependencies.onError(error);
+                            }
+                        });
+                        // A lazy proxy swallows defineProperty silently; confirm the swap.
+                        if (module[method] === before) {
+                            unpatch();
+                            return "continue";
+                        }
+                        unpatches.push(unpatch);
+                        (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.patched("".concat(source, "/").concat(name, ".").concat(method));
+                    } catch (error) {
+                        dependencies.onError(error);
+                    }
+                };
+                // Patch EVERY reachable reference. One of them is the object Discord
+                // actually calls; patching only the first produced an installed patch
+                // that never fired.
+                for(var _iterator = ((_dependencies_candidates = dependencies.candidates) !== null && _dependencies_candidates !== void 0 ? _dependencies_candidates : [])[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true)_loop();
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally{
                 try {
-                    var _dependencies_observe, _dependencies_observe1, _dependencies_observe2;
-                    (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.call(args);
-                    var raw = args[1];
-                    if (typeof raw !== 'string') return;
-                    var rows = JSON.parse(raw);
-                    (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
-                    var changed = decorateRows(rows, dependencies.getDecoration);
-                    (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(changed);
-                    if (changed > 0) args[1] = JSON.stringify(rows);
-                } catch (error) {
-                    dependencies.onError(error);
+                    if (!_iteratorNormalCompletion && _iterator.return != null) {
+                        _iterator.return();
+                    }
+                } finally{
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
                 }
-            });
-            // A lazy proxy swallows defineProperty silently; confirm the swap took.
-            if (target[method] === before) {
-                unpatch();
-                unpatch = undefined;
-                return false;
             }
-            return true;
+            return unpatches.length > 0;
         },
         stop: function stop() {
-            unpatch === null || unpatch === void 0 ? void 0 : unpatch();
-            unpatch = undefined;
+            var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+            try {
+                for(var _iterator = unpatches[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                    var unpatch = _step.value;
+                    try {
+                        unpatch();
+                    } catch (unused) {
+                    // ignore
+                    }
+                }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return != null) {
+                        _iterator.return();
+                    }
+                } finally{
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+            unpatches.length = 0;
         },
         isActive: function isActive() {
-            return Boolean(unpatch);
+            return unpatches.length > 0;
         }
     };
 }/**
@@ -2192,6 +2243,8 @@ function createDiagnostics() {
             methods: []
         },
         renderPatched: false,
+        patchSites: [],
+        firingSite: null,
         sendPatched: false,
         renderCalls: 0,
         parsedPayloads: 0,
@@ -2207,6 +2260,12 @@ function createDiagnostics() {
                 name: name,
                 methods: methods.slice(0, 20)
             };
+        },
+        addPatchSite: function addPatchSite(where) {
+            if (!state.patchSites.includes(where)) state.patchSites.push(where);
+        },
+        setFiringSite: function setFiringSite(where) {
+            state.firingSite = where;
         },
         setRenderPatched: function setRenderPatched(value) {
             state.renderPatched = value;
@@ -2244,6 +2303,30 @@ function createDiagnostics() {
                 lines.push("> Methods: `".concat(state.chatModule.methods.join(', '), "`"));
             }
             lines.push("> Render patch: ".concat(state.renderPatched ? 'active' : '**not applied**'));
+            if (state.patchSites.length) {
+                lines.push("> Patched ".concat(state.patchSites.length, " reference(s):"));
+                var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+                try {
+                    for(var _iterator = state.patchSites[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                        var site = _step.value;
+                        lines.push("> • `".concat(site, "`"));
+                    }
+                } catch (err) {
+                    _didIteratorError = true;
+                    _iteratorError = err;
+                } finally{
+                    try {
+                        if (!_iteratorNormalCompletion && _iterator.return != null) {
+                            _iterator.return();
+                        }
+                    } finally{
+                        if (_didIteratorError) {
+                            throw _iteratorError;
+                        }
+                    }
+                }
+            }
+            lines.push("> Firing site: ".concat(state.firingSite ? "`".concat(state.firingSite, "`") : '**none yet**'));
             lines.push("> Send patch: ".concat(state.sendPatched ? 'active' : '**not applied**'));
             lines.push("> Render calls seen: ".concat(state.renderCalls));
             lines.push("> Payloads parsed: ".concat(state.parsedPayloads));
@@ -2273,16 +2356,24 @@ function createDiagnostics() {
         }
     };
 }/**
- * Finds the native module that renders chat rows.
+ * Finds every reachable reference to the chat module.
  *
- * The name differs across Discord builds and platforms, and a wrong guess is
- * indistinguishable from a broken patch. Rather than hardcode one name, this
- * tries the known ones and then searches for any module exposing a plausible
- * row-update method, reporting what it found.
+ * A patch can be verifiably installed and still never run, which is exactly
+ * what the device reported: module found, patch active, zero calls. That means
+ * Discord calls the method on a DIFFERENT object than the one we patched.
+ *
+ * React Native exposes native modules through several routes — the legacy
+ * `NativeModules` map, the `nativeModuleProxy` global, and the TurboModule
+ * registry — and they do not always hand back the same object. So rather than
+ * pick one route and hope, this collects every distinct object that exposes a
+ * row-update method and lets the caller patch all of them.
  */ function _array_like_to_array$2(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
+}
+function _array_with_holes(arr) {
+    if (Array.isArray(arr)) return arr;
 }
 function _array_without_holes$2(arr) {
     if (Array.isArray(arr)) return _array_like_to_array$2(arr);
@@ -2292,8 +2383,38 @@ function _iterable_to_array$2(iter) {
         return Array.from(iter);
     }
 }
+function _iterable_to_array_limit(arr, i) {
+    var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"];
+    if (_i == null) return;
+    var _arr = [];
+    var _n = true;
+    var _d = false;
+    var _s, _e;
+    try {
+        for(_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true){
+            _arr.push(_s.value);
+            if (i && _arr.length === i) break;
+        }
+    } catch (err) {
+        _d = true;
+        _e = err;
+    } finally{
+        try {
+            if (!_n && _i["return"] != null) _i["return"]();
+        } finally{
+            if (_d) throw _e;
+        }
+    }
+    return _arr;
+}
+function _non_iterable_rest() {
+    throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
 function _non_iterable_spread$2() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _sliced_to_array(arr, i) {
+    return _array_with_holes(arr) || _iterable_to_array_limit(arr, i) || _unsupported_iterable_to_array$2(arr, i) || _non_iterable_rest();
 }
 function _to_consumable_array$2(arr) {
     return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$2(arr) || _non_iterable_spread$2();
@@ -2323,7 +2444,7 @@ function _unsupported_iterable_to_array$2(o, minLen) {
     'insertRows'
 ];
 function methodsOf(module) {
-    if (!module || (typeof module === "undefined" ? "undefined" : _type_of$1(module)) !== 'object') return [];
+    if (!module || (typeof module === "undefined" ? "undefined" : _type_of$1(module)) !== 'object' && typeof module !== 'function') return [];
     var names = new Set();
     try {
         var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
@@ -2347,11 +2468,10 @@ function methodsOf(module) {
             }
         }
     } catch (unused) {
-    // Some native modules throw on enumeration; fall through.
+    // Some native modules throw on enumeration; fall through to probing.
     }
     var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
     try {
-        // Probe the known names directly, since a proxy may not enumerate.
         for(var _iterator1 = KNOWN_METHODS[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
             var candidate = _step1.value;
             try {
@@ -2403,32 +2523,54 @@ function firstMethod(module) {
     }
     return null;
 }
+function push(out, seen, source, name, module) {
+    if (!module || seen.has(module)) return;
+    var method = firstMethod(module);
+    if (method) {
+        seen.add(module);
+        out.push({
+            source: source,
+            name: name,
+            module: module,
+            method: method
+        });
+    }
+    // A class or constructor: the method lives on the prototype, and instances
+    // call through it. Check it independently, since the constructor itself
+    // usually exposes nothing.
+    if (typeof module === 'function' && module.prototype) {
+        push(out, seen, "".concat(source, ".prototype"), name, module.prototype);
+    }
+}
 /**
- * Resolves the chat module.
+ * Collects every distinct patchable reference.
  *
- * @returns The candidate, or null when nothing plausible exists.
- */ function findChatModule(dependencies) {
-    var _dependencies_moduleMaps;
+ * @returns Candidates in priority order; empty when nothing plausible exists.
+ */ function collectChatModules(dependencies) {
+    var found = [];
+    var seen = new Set();
     var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
     try {
-        // Try each known name on its own, so we learn WHICH one matched.
         for(var _iterator = KNOWN_MODULE_NAMES[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
             var name = _step.value;
-            var module = void 0;
+            // Each route is tried separately, because they can disagree about which
+            // object is "the" module.
             try {
-                module = dependencies.getNativeModule(name);
-            } catch (unused) {
-                continue;
-            }
-            var method = firstMethod(module);
-            if (method) {
-                return {
-                    name: name,
-                    module: module,
-                    method: method,
-                    methods: methodsOf(module)
-                };
-            }
+                var _dependencies_getNativeModule;
+                push(found, seen, 'getNativeModule', name, (_dependencies_getNativeModule = dependencies.getNativeModule) === null || _dependencies_getNativeModule === void 0 ? void 0 : _dependencies_getNativeModule.call(dependencies, name));
+            } catch (unused) {}
+            try {
+                var _dependencies_nativeModuleProxy;
+                push(found, seen, 'nativeModuleProxy', name, (_dependencies_nativeModuleProxy = dependencies.nativeModuleProxy) === null || _dependencies_nativeModuleProxy === void 0 ? void 0 : _dependencies_nativeModuleProxy[name]);
+            } catch (unused) {}
+            try {
+                var _dependencies_nativeModules;
+                push(found, seen, 'NativeModules', name, (_dependencies_nativeModules = dependencies.nativeModules) === null || _dependencies_nativeModules === void 0 ? void 0 : _dependencies_nativeModules[name]);
+            } catch (unused) {}
+            try {
+                var _dependencies_turboModuleRegistry_get, _dependencies_turboModuleRegistry;
+                push(found, seen, 'TurboModuleRegistry', name, (_dependencies_turboModuleRegistry = dependencies.turboModuleRegistry) === null || _dependencies_turboModuleRegistry === void 0 ? void 0 : (_dependencies_turboModuleRegistry_get = _dependencies_turboModuleRegistry.get) === null || _dependencies_turboModuleRegistry_get === void 0 ? void 0 : _dependencies_turboModuleRegistry_get.call(_dependencies_turboModuleRegistry, name));
+            } catch (unused) {}
         }
     } catch (err) {
         _didIteratorError = true;
@@ -2444,71 +2586,51 @@ function firstMethod(module) {
             }
         }
     }
-    var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
-    try {
-        // Last resort: scan the module maps for anything exposing a row updater.
-        for(var _iterator1 = ((_dependencies_moduleMaps = dependencies.moduleMaps) !== null && _dependencies_moduleMaps !== void 0 ? _dependencies_moduleMaps : [])[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
-            var map = _step1.value;
-            if (!map || (typeof map === "undefined" ? "undefined" : _type_of$1(map)) !== 'object') continue;
-            var keys = void 0;
-            try {
-                keys = Object.keys(map);
-            } catch (unused) {
-                continue;
-            }
-            var _iteratorNormalCompletion2 = true, _didIteratorError2 = false, _iteratorError2 = undefined;
-            try {
-                for(var _iterator2 = keys[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true){
-                    var key = _step2.value;
-                    // Only consider plausibly chat-related modules, to avoid touching
-                    // unrelated native modules while probing.
-                    if (!/chat|message|row/i.test(key)) continue;
-                    var module1 = void 0;
-                    try {
-                        module1 = map[key];
-                    } catch (unused) {
-                        continue;
-                    }
-                    var method1 = firstMethod(module1);
-                    if (method1) {
-                        return {
-                            name: key,
-                            module: module1,
-                            method: method1,
-                            methods: methodsOf(module1)
-                        };
-                    }
-                }
-            } catch (err) {
-                _didIteratorError2 = true;
-                _iteratorError2 = err;
-            } finally{
-                try {
-                    if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
-                        _iterator2.return();
-                    }
-                } finally{
-                    if (_didIteratorError2) {
-                        throw _iteratorError2;
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        _didIteratorError1 = true;
-        _iteratorError1 = err;
-    } finally{
+    // Last resort: scan the maps for anything chat-like exposing a row updater.
+    for(var _i = 0, _iter = [
+        [
+            'nativeModuleProxy',
+            dependencies.nativeModuleProxy
+        ],
+        [
+            'NativeModules',
+            dependencies.nativeModules
+        ]
+    ]; _i < _iter.length; _i++){
+        var _iter__i = _sliced_to_array(_iter[_i], 2), source = _iter__i[0], map = _iter__i[1];
+        if (!map || (typeof map === "undefined" ? "undefined" : _type_of$1(map)) !== 'object') continue;
+        var keys = void 0;
         try {
-            if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
-                _iterator1.return();
+            keys = Object.keys(map);
+        } catch (unused) {
+            continue;
+        }
+        var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+        try {
+            for(var _iterator1 = keys[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+                var key = _step1.value;
+                // Only plausibly chat-related modules, to avoid touching unrelated ones.
+                if (!/chat|message|row/i.test(key)) continue;
+                try {
+                    push(found, seen, "".concat(source, ":scan"), key, map[key]);
+                } catch (unused) {}
             }
+        } catch (err) {
+            _didIteratorError1 = true;
+            _iteratorError1 = err;
         } finally{
-            if (_didIteratorError1) {
-                throw _iteratorError1;
+            try {
+                if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                    _iterator1.return();
+                }
+            } finally{
+                if (_didIteratorError1) {
+                    throw _iteratorError1;
+                }
             }
         }
     }
-    return null;
+    return found;
 }/**
  * Unbound exposes Discord modules through `lazy()` proxies.
  *
@@ -3161,8 +3283,8 @@ function warn(message) {
 var index = {
     start: function start() {
         var _native, _metro, _metro1;
-        var _ref, _ref1;
-        var _globalThis, _metro_common_ReactNative;
+        var _ref;
+        var _globalThis, _metro_common_ReactNative, _metro_common_ReactNative1, _candidates_;
         if (controller) return;
         var translator = createTranslationClient();
         var config = createChatConfig(window.unbound.storage.getStore(STORE_NAME));
@@ -3173,22 +3295,20 @@ var index = {
         // message store is never modified and the server cannot erase the added
         // line. The mobile seam is the native chat module's row-update call, which
         // receives the rendered rows as a JSON string.
-        var found = findChatModule({
+        var candidates = collectChatModules({
             getNativeModule: function getNativeModule() {
                 for(var _len = arguments.length, names = new Array(_len), _key = 0; _key < _len; _key++){
                     names[_key] = arguments[_key];
                 }
                 return (_native = window.unbound.native).getNativeModule.apply(_native, _to_consumable_array(names));
             },
-            moduleMaps: [
-                (_globalThis = globalThis) === null || _globalThis === void 0 ? void 0 : _globalThis.nativeModuleProxy,
-                (_metro_common_ReactNative = window.unbound.metro.common.ReactNative) === null || _metro_common_ReactNative === void 0 ? void 0 : _metro_common_ReactNative.NativeModules
-            ]
+            nativeModuleProxy: (_globalThis = globalThis) === null || _globalThis === void 0 ? void 0 : _globalThis.nativeModuleProxy,
+            nativeModules: (_metro_common_ReactNative = window.unbound.metro.common.ReactNative) === null || _metro_common_ReactNative === void 0 ? void 0 : _metro_common_ReactNative.NativeModules,
+            turboModuleRegistry: (_metro_common_ReactNative1 = window.unbound.metro.common.ReactNative) === null || _metro_common_ReactNative1 === void 0 ? void 0 : _metro_common_ReactNative1.TurboModuleRegistry
         });
-        diagnostics.setChatModule(Boolean(found), (_ref = found === null || found === void 0 ? void 0 : found.name) !== null && _ref !== void 0 ? _ref : null, (_ref1 = found === null || found === void 0 ? void 0 : found.methods) !== null && _ref1 !== void 0 ? _ref1 : []);
+        diagnostics.setChatModule(candidates.length > 0, (_ref = (_candidates_ = candidates[0]) === null || _candidates_ === void 0 ? void 0 : _candidates_.name) !== null && _ref !== void 0 ? _ref : null, candidates[0] ? methodsOf(candidates[0].module) : []);
         render = createRenderController({
-            chatModule: found === null || found === void 0 ? void 0 : found.module,
-            method: found === null || found === void 0 ? void 0 : found.method,
+            candidates: candidates,
             patchBefore: function patchBefore(parent, method, callback) {
                 return window.unbound.patcher.before(parent, method, function(ctx) {
                     callback(ctx.args);
@@ -3204,8 +3324,12 @@ var index = {
                 console.warn('[Realtime Translator] Row render failed:', error);
             },
             observe: {
-                call: function call(args) {
+                patched: function patched(where) {
+                    return diagnostics.addPatchSite(where);
+                },
+                call: function call(args, where) {
                     diagnostics.countRenderCall();
+                    diagnostics.setFiringSite(where);
                     diagnostics.recordPayload(describePayload(args));
                 },
                 parsed: function parsed() {

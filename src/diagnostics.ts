@@ -16,6 +16,10 @@ export interface Diagnostics {
   };
   /** Whether the render patch verifiably replaced the method. */
   renderPatched: boolean;
+  /** Every reference that was patched, as source/name.method. */
+  patchSites: string[];
+  /** Which site actually fired, if any. */
+  firingSite: string | null;
   /** Whether the send patch verifiably replaced sendMessage. */
   sendPatched: boolean;
   /** How many times the render hook has been entered. */
@@ -51,6 +55,10 @@ export interface PayloadShape {
 
 export interface DiagnosticsRecorder {
   setChatModule(resolved: boolean, name: string | null, methods: string[]): void;
+  /** Records every reference that was successfully patched. */
+  addPatchSite(where: string): void;
+  /** Records which site actually fired. */
+  setFiringSite(where: string): void;
   setRenderPatched(value: boolean): void;
   setSendPatched(value: boolean): void;
   countRenderCall(): void;
@@ -122,6 +130,8 @@ export function createDiagnostics(): DiagnosticsRecorder {
   const state: Diagnostics = {
     chatModule: { resolved: false, name: null, methods: [] },
     renderPatched: false,
+    patchSites: [],
+    firingSite: null,
     sendPatched: false,
     renderCalls: 0,
     parsedPayloads: 0,
@@ -134,6 +144,12 @@ export function createDiagnostics(): DiagnosticsRecorder {
   return {
     setChatModule(resolved, name, methods) {
       state.chatModule = { resolved, name, methods: methods.slice(0, 20) };
+    },
+    addPatchSite(where) {
+      if (!state.patchSites.includes(where)) state.patchSites.push(where);
+    },
+    setFiringSite(where) {
+      state.firingSite = where;
     },
     setRenderPatched(value) {
       state.renderPatched = value;
@@ -179,6 +195,13 @@ export function createDiagnostics(): DiagnosticsRecorder {
       }
 
       lines.push(`> Render patch: ${state.renderPatched ? 'active' : '**not applied**'}`);
+
+      if (state.patchSites.length) {
+        lines.push(`> Patched ${state.patchSites.length} reference(s):`);
+        for (const site of state.patchSites) lines.push(`> • \`${site}\``);
+      }
+
+      lines.push(`> Firing site: ${state.firingSite ? `\`${state.firingSite}\`` : '**none yet**'}`);
       lines.push(`> Send patch: ${state.sendPatched ? 'active' : '**not applied**'}`);
       lines.push(`> Render calls seen: ${state.renderCalls}`);
       lines.push(`> Payloads parsed: ${state.parsedPayloads}`);

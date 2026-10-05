@@ -7,7 +7,7 @@ import { createCommandController, type CommandController } from './commands';
 import { createRenderController, type RenderController } from './render-patch';
 import { createDecorationStore } from './decorations';
 import { createDiagnostics, describePayload } from './diagnostics';
-import { findChatModule } from './find-chat-module';
+import { collectChatModules, methodsOf } from './find-chat-module';
 import { resolvePatchTarget } from './patch-target';
 import { getSelectedChannelMessages } from './messages';
 import { createTranslationClient } from './translation';
@@ -72,23 +72,21 @@ export default {
     // message store is never modified and the server cannot erase the added
     // line. The mobile seam is the native chat module's row-update call, which
     // receives the rendered rows as a JSON string.
-    const found = findChatModule({
+    const candidates = collectChatModules({
       getNativeModule: (...names: string[]) => native.getNativeModule(...names),
-      moduleMaps: [
-        (globalThis as any)?.nativeModuleProxy,
-        (metro.common.ReactNative as any)?.NativeModules,
-      ],
+      nativeModuleProxy: (globalThis as any)?.nativeModuleProxy,
+      nativeModules: (metro.common.ReactNative as any)?.NativeModules,
+      turboModuleRegistry: (metro.common.ReactNative as any)?.TurboModuleRegistry,
     });
 
     diagnostics.setChatModule(
-      Boolean(found),
-      found?.name ?? null,
-      found?.methods ?? [],
+      candidates.length > 0,
+      candidates[0]?.name ?? null,
+      candidates[0] ? methodsOf(candidates[0].module) : [],
     );
 
     render = createRenderController({
-      chatModule: found?.module,
-      method: found?.method,
+      candidates,
       patchBefore: (parent, method, callback) => patcher.before(
         parent,
         method as never,
@@ -101,8 +99,10 @@ export default {
         console.warn('[Realtime Translator] Row render failed:', error);
       },
       observe: {
-        call: (args) => {
+        patched: (where) => diagnostics.addPatchSite(where),
+        call: (args, where) => {
           diagnostics.countRenderCall();
+          diagnostics.setFiringSite(where);
           diagnostics.recordPayload(describePayload(args));
         },
         parsed: () => diagnostics.countParsedPayload(),

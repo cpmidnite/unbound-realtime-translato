@@ -188,7 +188,7 @@ describe('render controller', () => {
     store.set('m1', { content: 'hola', line: 'English: hello' });
 
     const controller = createRenderController({
-      chatModule: module,
+      candidates: [{ source: 'test', name: 'Chat', module, method: 'updateRows' }],
       patchBefore: installer(),
       getDecoration: (id) => store.get(id),
       onError: (error) => { throw error; },
@@ -210,7 +210,7 @@ describe('render controller', () => {
     const store = createDecorationStore();
 
     const controller = createRenderController({
-      chatModule: module,
+      candidates: [{ source: 'test', name: 'Chat', module, method: 'updateRows' }],
       patchBefore: installer(),
       getDecoration: (id) => store.get(id),
       onError: (error) => { throw error; },
@@ -225,7 +225,7 @@ describe('render controller', () => {
 
   test('reports failure when the chat module is missing', () => {
     const controller = createRenderController({
-      chatModule: undefined,
+      candidates: [],
       patchBefore: () => () => {},
       getDecoration: () => undefined,
       onError: () => {},
@@ -238,7 +238,7 @@ describe('render controller', () => {
     const { module } = fakeChatModule();
 
     const controller = createRenderController({
-      chatModule: module,
+      candidates: [{ source: 'test', name: 'Chat', module, method: 'updateRows' }],
       patchBefore: () => () => {},
       getDecoration: () => undefined,
       onError: () => {},
@@ -252,7 +252,7 @@ describe('render controller', () => {
     const errors: unknown[] = [];
 
     const controller = createRenderController({
-      chatModule: module,
+      candidates: [{ source: 'test', name: 'Chat', module, method: 'updateRows' }],
       patchBefore: installer(),
       getDecoration: () => ({ content: 'x', line: 'y' }),
       onError: (error) => errors.push(error),
@@ -270,7 +270,7 @@ describe('render controller', () => {
     const errors: unknown[] = [];
 
     const controller = createRenderController({
-      chatModule: module,
+      candidates: [{ source: 'test', name: 'Chat', module, method: 'updateRows' }],
       patchBefore: installer(),
       getDecoration: () => {
         throw new Error('store exploded');
