@@ -161,7 +161,38 @@ describe('payload description', () => {
     const shape = describePayload(['chan', { rows: [] }]);
 
     expect(shape.argTypes).toEqual(['string', 'object']);
-    expect(shape.parsedArray).toBe(false);
+    expect(shape.parsedArray).toBe(true);
+    expect(shape.rowCount).toBe(0);
+    expect(shape.argKeys[1]).toEqual(['rows']);
+  });
+
+  test('finds rows passed as a live array, not a JSON string', () => {
+    const shape = describePayload([
+      'chan',
+      [row('m1', [{ type: 'text', content: 'hola' }])],
+    ]);
+
+    expect(shape.argTypes[1]).toBe('array(1)');
+    expect(shape.parsedArray).toBe(true);
+    expect(shape.firstMessage?.contentIsArray).toBe(true);
+  });
+
+  test('finds rows nested under an object key', () => {
+    const shape = describePayload([
+      { channelId: 'c1' },
+      { rows: [row('m1', [{ type: 'text', content: 'hola' }])] },
+    ]);
+
+    expect(shape.parsedArray).toBe(true);
+    expect(shape.rowCount).toBe(1);
+    expect(shape.firstMessage?.hasId).toBe(true);
+  });
+
+  test('names the keys of object arguments', () => {
+    const shape = describePayload([{ channelId: 'c1', extra: 1 }, { rows: [] }]);
+
+    expect(shape.argKeys[0]).toEqual(['channelId', 'extra']);
+    expect(shape.argKeys[1]).toEqual(['rows']);
   });
 
   test('handles unparseable JSON', () => {

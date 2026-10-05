@@ -39,6 +39,12 @@ interface RenderDependencies {
     method: string,
     callback: (args: any[]) => void,
   ): () => void;
+  /** For methods that RETURN a row, such as RowManager.generate. */
+  patchAfter?(
+    parent: any,
+    method: string,
+    callback: (args: any[], result: any) => any,
+  ): () => void;
   getDecoration(messageId: string): Decoration | undefined;
   onError(error: unknown): void;
   /** Optional observer, used by the diagnostics report. */
@@ -156,6 +162,81 @@ export function decorateRows(
   return changed;
 }
 
+/**
+ * Finds and decorates rows anywhere in a call's arguments.
+ *
+ * The payload shape is build-dependent, and assuming one form is what broke
+ * this twice. The native module receives rows as a JSON string, while the
+ * JS-side wrapper receives live objects — the device reported `object, object`
+ * where a string had been assumed, so nothing was ever parsed.
+ *
+ * This inspects every argument, handles strings, arrays, and objects holding a
+ * row array, mutates live objects in place, and re-serialises only the strings
+ * it parsed.
+ *
+ * @returns Number of rows decorated.
+ */
+export function decoratePayload(
+  args: any[],
+  getDecoration: (messageId: string) => Decoration | undefined,
+): number {
+  let changed = 0;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+
+    // Form 1: rows as a JSON string, used by the native module.
+    if (typeof argument === 'string') {
+      if (!argument.startsWith('[') && !argument.startsWith('{')) continue;
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(argument);
+      } catch {
+        continue;
+      }
+
+      const count = decorateAnyRows(parsed, getDecoration);
+      if (count > 0) {
+        args[index] = JSON.stringify(parsed);
+        changed += count;
+      }
+
+      continue;
+    }
+
+    // Forms 2 and 3: a live array of rows, or an object holding one. Mutated in
+    // place, so no re-assignment is needed.
+    changed += decorateAnyRows(argument, getDecoration);
+  }
+
+  return changed;
+}
+
+/** Keys that have been observed to hold a row array. */
+const ROW_KEYS = ['rows', 'data', 'items', 'messages', 'rowData'];
+
+/** Decorates rows held directly, or nested one level under a known key. */
+function decorateAnyRows(
+  value: unknown,
+  getDecoration: (messageId: string) => Decoration | undefined,
+): number {
+  if (Array.isArray(value)) return decorateRows(value, getDecoration);
+  if (!value || typeof value !== 'object') return 0;
+
+  let changed = 0;
+
+  // A single row passed on its own, as RowManager.generate returns.
+  if (decorateRow(value, getDecoration)) changed += 1;
+
+  for (const key of ROW_KEYS) {
+    const nested = (value as any)[key];
+    if (Array.isArray(nested)) changed += decorateRows(nested, getDecoration);
+  }
+
+  return changed;
+}
+
 export function createRenderController(
   dependencies: RenderDependencies,
 ): RenderController {
@@ -170,31 +251,42 @@ export function createRenderController(
       // that never fired.
       for (const candidate of dependencies.candidates ?? []) {
         const { module, method, source, name } = candidate;
+        const where = `${source}/${name}.${method}`;
 
         try {
           if (typeof module?.[method] !== 'function') continue;
 
           const before = module[method];
 
-          const unpatch = dependencies.patchBefore(module, method, (args) => {
-            // Never throw: this call renders the message list.
-            try {
-              dependencies.observe?.call(args, `${source}/${name}.${method}`);
+          // `generate` RETURNS the row it builds, so it has to be decorated
+          // after the call. Everything else receives rows as arguments.
+          const unpatch = method === 'generate' && dependencies.patchAfter
+            ? dependencies.patchAfter(module, method, (_args, result) => {
+              try {
+                dependencies.observe?.call([result], where);
+                dependencies.observe?.parsed();
 
-              const raw = args[1];
-              if (typeof raw !== 'string') return;
+                const count = decorateAnyRows(result, dependencies.getDecoration);
+                dependencies.observe?.decorated(count);
+              } catch (error) {
+                dependencies.onError(error);
+              }
 
-              const rows = JSON.parse(raw);
-              dependencies.observe?.parsed();
+              return result;
+            })
+            : dependencies.patchBefore(module, method, (args) => {
+              // Never throw: this call renders the message list.
+              try {
+                dependencies.observe?.call(args, where);
 
-              const changed = decorateRows(rows, dependencies.getDecoration);
-              dependencies.observe?.decorated(changed);
+                const count = decoratePayload(args, dependencies.getDecoration);
+                if (count > 0) dependencies.observe?.parsed();
 
-              if (changed > 0) args[1] = JSON.stringify(rows);
-            } catch (error) {
-              dependencies.onError(error);
-            }
-          });
+                dependencies.observe?.decorated(count);
+              } catch (error) {
+                dependencies.onError(error);
+              }
+            });
 
           // A lazy proxy swallows defineProperty silently; confirm the swap.
           if (module[method] === before) {
@@ -203,7 +295,7 @@ export function createRenderController(
           }
 
           unpatches.push(unpatch);
-          dependencies.observe?.patched(`${source}/${name}.${method}`);
+          dependencies.observe?.patched(where);
         } catch (error) {
           dependencies.onError(error);
         }

@@ -96,12 +96,18 @@ export default {
 
     for (const entry of surveyed) {
       for (const method of entry.methods) {
-        if (!['updateRows', 'updateRowsSync', 'setRows', 'insertRows'].includes(method)) continue;
+        // `generate` returns the row it builds, so it is patched after the
+        // call; the others receive rows as arguments.
+        if (!['updateRows', 'updateRowsSync', 'setRows', 'insertRows', 'generate'].includes(method)) {
+          continue;
+        }
 
         const module = (entry as any).module ?? undefined;
         if (!module) continue;
 
-        if (!candidates.some((candidate) => candidate.module === module)) {
+        if (!candidates.some(
+          (candidate) => candidate.module === module && candidate.method === method,
+        )) {
           candidates.push({ source: entry.source, name: entry.name, module, method });
         }
       }
@@ -119,6 +125,12 @@ export default {
         parent,
         method as never,
         ((ctx: any) => { callback(ctx.args); }) as never,
+        { caller: STORE_NAME },
+      ),
+      patchAfter: (parent, method, callback) => patcher.after(
+        parent,
+        method as never,
+        ((ctx: any) => callback(ctx.args, ctx.result)) as never,
         { caller: STORE_NAME },
       ),
       getDecoration: (messageId) => decorations.get(messageId),

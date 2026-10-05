@@ -6,6 +6,7 @@ import {
   contentToText,
   createRenderController,
   decorateRow,
+  decoratePayload,
   decorateRows,
 } from '../src/render-patch';
 
@@ -158,6 +159,78 @@ describe('row decoration', () => {
   });
 });
 
+describe('payload shapes other than a JSON string', () => {
+  function messageRow2(id: string, nodes: any[]) {
+    return { type: 1, message: { id, authorId: 'u1', channelId: 'c1', content: nodes } };
+  }
+
+  function store1() {
+    const store = createDecorationStore();
+    store.set('m1', { content: 'hola', line: 'English: hello' });
+    return store;
+  }
+
+  test('decorates a LIVE array of rows, mutated in place', () => {
+    // The shape the device reported: objects, not a JSON string.
+    const store = store1();
+    const rows = [messageRow2('m1', [text('hola')])];
+
+    const count = decoratePayload(['chan', rows], (id) => store.get(id));
+
+    expect(count).toBe(1);
+    expect(contentToText(rows[0]!.message.content)).toBe('hola\n↳ English: hello');
+  });
+
+  test('decorates rows nested under an object key', () => {
+    const store = store1();
+    const payload = { rows: [messageRow2('m1', [text('hola')])] };
+
+    expect(decoratePayload(['chan', payload], (id) => store.get(id))).toBe(1);
+    expect(contentToText(payload.rows[0]!.message.content)).toContain('hello');
+  });
+
+  test('decorates a single row object passed on its own', () => {
+    const store = store1();
+    const row = messageRow2('m1', [text('hola')]);
+
+    expect(decoratePayload([row], (id) => store.get(id))).toBe(1);
+    expect(contentToText(row.message.content)).toContain('hello');
+  });
+
+  test('still handles the JSON-string form, re-serialising it', () => {
+    const store = store1();
+    const args: any[] = ['chan', JSON.stringify([messageRow2('m1', [text('hola')])])];
+
+    expect(decoratePayload(args, (id) => store.get(id))).toBe(1);
+    expect(typeof args[1]).toBe('string');
+    expect(contentToText(JSON.parse(args[1])[0].message.content)).toContain('hello');
+  });
+
+  test('finds rows in any argument position', () => {
+    const store = store1();
+    const rows = [messageRow2('m1', [text('hola')])];
+
+    expect(decoratePayload([null, 'noise', 42, rows], (id) => store.get(id))).toBe(1);
+  });
+
+  test('leaves a payload with no matching rows untouched', () => {
+    const store = createDecorationStore();
+    const args: any[] = ['chan', JSON.stringify([messageRow2('m1', [text('hola')])])];
+    const original = args[1];
+
+    expect(decoratePayload(args, (id) => store.get(id))).toBe(0);
+    expect(args[1]).toBe(original);
+  });
+
+  test('ignores strings that are not JSON', () => {
+    const store = store1();
+    const args = ['chan', 'hola'];
+
+    expect(decoratePayload(args, (id) => store.get(id))).toBe(0);
+    expect(args[1]).toBe('hola');
+  });
+});
+
 describe('render controller', () => {
   function fakeChatModule() {
     const calls: string[] = [];
@@ -261,8 +334,10 @@ describe('render controller', () => {
 
     module.updateRows('chan', 'definitely not json');
 
+    // A string that is not JSON is skipped rather than treated as an error:
+    // the payload must reach the renderer untouched either way.
     expect(calls[0]).toBe('definitely not json');
-    expect(errors).toHaveLength(1);
+    expect(errors).toHaveLength(0);
   });
 
   test('a throwing decoration lookup never breaks the message list', () => {

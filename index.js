@@ -2048,6 +2048,81 @@ function alreadyDecorated(content) {
     }
     return changed;
 }
+/**
+ * Finds and decorates rows anywhere in a call's arguments.
+ *
+ * The payload shape is build-dependent, and assuming one form is what broke
+ * this twice. The native module receives rows as a JSON string, while the
+ * JS-side wrapper receives live objects — the device reported `object, object`
+ * where a string had been assumed, so nothing was ever parsed.
+ *
+ * This inspects every argument, handles strings, arrays, and objects holding a
+ * row array, mutates live objects in place, and re-serialises only the strings
+ * it parsed.
+ *
+ * @returns Number of rows decorated.
+ */ function decoratePayload(args, getDecoration) {
+    var changed = 0;
+    for(var index = 0; index < args.length; index += 1){
+        var argument = args[index];
+        // Form 1: rows as a JSON string, used by the native module.
+        if (typeof argument === 'string') {
+            if (!argument.startsWith('[') && !argument.startsWith('{')) continue;
+            var parsed = void 0;
+            try {
+                parsed = JSON.parse(argument);
+            } catch (unused) {
+                continue;
+            }
+            var count = decorateAnyRows(parsed, getDecoration);
+            if (count > 0) {
+                args[index] = JSON.stringify(parsed);
+                changed += count;
+            }
+            continue;
+        }
+        // Forms 2 and 3: a live array of rows, or an object holding one. Mutated in
+        // place, so no re-assignment is needed.
+        changed += decorateAnyRows(argument, getDecoration);
+    }
+    return changed;
+}
+/** Keys that have been observed to hold a row array. */ var ROW_KEYS = [
+    'rows',
+    'data',
+    'items',
+    'messages',
+    'rowData'
+];
+/** Decorates rows held directly, or nested one level under a known key. */ function decorateAnyRows(value, getDecoration) {
+    if (Array.isArray(value)) return decorateRows(value, getDecoration);
+    if (!value || (typeof value === "undefined" ? "undefined" : _type_of$4(value)) !== 'object') return 0;
+    var changed = 0;
+    // A single row passed on its own, as RowManager.generate returns.
+    if (decorateRow(value, getDecoration)) changed += 1;
+    var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+    try {
+        for(var _iterator = ROW_KEYS[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+            var key = _step.value;
+            var nested = value[key];
+            if (Array.isArray(nested)) changed += decorateRows(nested, getDecoration);
+        }
+    } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+    } finally{
+        try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+                _iterator.return();
+            }
+        } finally{
+            if (_didIteratorError) {
+                throw _iteratorError;
+            }
+        }
+    }
+    return changed;
+}
 function createRenderController(dependencies) {
     var unpatches = [];
     return {
@@ -2059,22 +2134,34 @@ function createRenderController(dependencies) {
                 var _loop = function() {
                     var candidate = _step.value;
                     var module = candidate.module, method = candidate.method, source = candidate.source, name = candidate.name;
+                    var where = "".concat(source, "/").concat(name, ".").concat(method);
                     try {
                         var _dependencies_observe;
                         if (typeof (module === null || module === void 0 ? void 0 : module[method]) !== 'function') return "continue";
                         var before = module[method];
-                        var unpatch = dependencies.patchBefore(module, method, function(args) {
+                        // `generate` RETURNS the row it builds, so it has to be decorated
+                        // after the call. Everything else receives rows as arguments.
+                        var unpatch = method === 'generate' && dependencies.patchAfter ? dependencies.patchAfter(module, method, function(_args, result) {
+                            try {
+                                var _dependencies_observe, _dependencies_observe1, _dependencies_observe2;
+                                (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.call([
+                                    result
+                                ], where);
+                                (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
+                                var count = decorateAnyRows(result, dependencies.getDecoration);
+                                (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(count);
+                            } catch (error) {
+                                dependencies.onError(error);
+                            }
+                            return result;
+                        }) : dependencies.patchBefore(module, method, function(args) {
                             // Never throw: this call renders the message list.
                             try {
                                 var _dependencies_observe, _dependencies_observe1, _dependencies_observe2;
-                                (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.call(args, "".concat(source, "/").concat(name, ".").concat(method));
-                                var raw = args[1];
-                                if (typeof raw !== 'string') return;
-                                var rows = JSON.parse(raw);
-                                (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
-                                var changed = decorateRows(rows, dependencies.getDecoration);
-                                (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(changed);
-                                if (changed > 0) args[1] = JSON.stringify(rows);
+                                (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.call(args, where);
+                                var count = decoratePayload(args, dependencies.getDecoration);
+                                if (count > 0) (_dependencies_observe1 = dependencies.observe) === null || _dependencies_observe1 === void 0 ? void 0 : _dependencies_observe1.parsed();
+                                (_dependencies_observe2 = dependencies.observe) === null || _dependencies_observe2 === void 0 ? void 0 : _dependencies_observe2.decorated(count);
                             } catch (error) {
                                 dependencies.onError(error);
                             }
@@ -2085,7 +2172,7 @@ function createRenderController(dependencies) {
                             return "continue";
                         }
                         unpatches.push(unpatch);
-                        (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.patched("".concat(source, "/").concat(name, ".").concat(method));
+                        (_dependencies_observe = dependencies.observe) === null || _dependencies_observe === void 0 ? void 0 : _dependencies_observe.patched(where);
                     } catch (error) {
                         dependencies.onError(error);
                     }
@@ -2197,7 +2284,7 @@ function _type_of$3(obj) {
 function describePayload(args) {
     var argTypes = args.map(function(arg) {
         if (arg === null) return 'null';
-        if (Array.isArray(arg)) return 'array';
+        if (Array.isArray(arg)) return "array(".concat(arg.length, ")");
         return typeof arg === "undefined" ? "undefined" : _type_of$3(arg);
     });
     var shape = {
@@ -2205,38 +2292,139 @@ function describePayload(args) {
         parsedArray: false,
         rowCount: 0,
         rowTypes: [],
+        argKeys: [],
         firstMessage: null
     };
-    var raw = args[1];
-    if (typeof raw !== 'string') return shape;
-    var rows;
+    var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
     try {
-        rows = JSON.parse(raw);
-    } catch (unused) {
-        return shape;
+        // Name the shape of every object argument. Without this, "object, object"
+        // gave no clue where the rows were.
+        for(var _iterator = args[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+            var arg = _step.value;
+            if (!arg || (typeof arg === "undefined" ? "undefined" : _type_of$3(arg)) !== 'object' || Array.isArray(arg)) {
+                shape.argKeys.push([]);
+                continue;
+            }
+            try {
+                shape.argKeys.push(Object.keys(arg).slice(0, 14));
+            } catch (unused) {
+                shape.argKeys.push([
+                    '<unreadable>'
+                ]);
+            }
+        }
+    } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+    } finally{
+        try {
+            if (!_iteratorNormalCompletion && _iterator.return != null) {
+                _iterator.return();
+            }
+        } finally{
+            if (_didIteratorError) {
+                throw _iteratorError;
+            }
+        }
     }
-    if (!Array.isArray(rows)) return shape;
-    shape.parsedArray = true;
-    shape.rowCount = rows.length;
-    shape.rowTypes = rows.slice(0, 8).map(function(row) {
-        return row === null || row === void 0 ? void 0 : row.type;
-    });
-    var messageRow = rows.find(function(row) {
-        return row === null || row === void 0 ? void 0 : row.message;
-    });
-    if (messageRow) {
-        var message = messageRow.message;
-        var content = message === null || message === void 0 ? void 0 : message.content;
-        shape.firstMessage = {
-            hasId: typeof (message === null || message === void 0 ? void 0 : message.id) === 'string',
-            contentIsArray: Array.isArray(content),
-            contentType: content === undefined ? 'undefined' : Array.isArray(content) ? 'array' : typeof content === "undefined" ? "undefined" : _type_of$3(content),
-            // Node TYPES only. Message text is never recorded.
-            nodeTypes: Array.isArray(content) ? content.slice(0, 12).map(function(node) {
-                var _ref;
-                return typeof node === 'string' ? 'string' : String((_ref = node === null || node === void 0 ? void 0 : node.type) !== null && _ref !== void 0 ? _ref : '?');
-            }) : []
-        };
+    // Rows may arrive as a JSON string, a live array, or nested in an object, and
+    // in any argument position. Find the first that looks like rows.
+    var candidates = [];
+    var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+    try {
+        for(var _iterator1 = args[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+            var arg1 = _step1.value;
+            if (typeof arg1 === 'string') {
+                if (!arg1.startsWith('[') && !arg1.startsWith('{')) continue;
+                try {
+                    candidates.push(JSON.parse(arg1));
+                } catch (unused) {
+                // not JSON
+                }
+                continue;
+            }
+            if (Array.isArray(arg1)) {
+                candidates.push(arg1);
+                continue;
+            }
+            if (arg1 && (typeof arg1 === "undefined" ? "undefined" : _type_of$3(arg1)) === 'object') {
+                candidates.push(arg1);
+                for(var _i = 0, _iter = [
+                    'rows',
+                    'data',
+                    'items',
+                    'messages',
+                    'rowData'
+                ]; _i < _iter.length; _i++){
+                    var key = _iter[_i];
+                    try {
+                        var nested = arg1[key];
+                        if (nested) candidates.push(nested);
+                    } catch (unused) {
+                    // getter threw
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        _didIteratorError1 = true;
+        _iteratorError1 = err;
+    } finally{
+        try {
+            if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                _iterator1.return();
+            }
+        } finally{
+            if (_didIteratorError1) {
+                throw _iteratorError1;
+            }
+        }
+    }
+    var _iteratorNormalCompletion2 = true, _didIteratorError2 = false, _iteratorError2 = undefined;
+    try {
+        for(var _iterator2 = candidates[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true){
+            var candidate = _step2.value;
+            var rows = Array.isArray(candidate) ? candidate : candidate && (typeof candidate === "undefined" ? "undefined" : _type_of$3(candidate)) === 'object' && candidate.message ? [
+                candidate
+            ] : null;
+            if (!rows) continue;
+            shape.parsedArray = true;
+            shape.rowCount = rows.length;
+            shape.rowTypes = rows.slice(0, 8).map(function(row) {
+                return row === null || row === void 0 ? void 0 : row.type;
+            });
+            var messageRow = rows.find(function(row) {
+                return row === null || row === void 0 ? void 0 : row.message;
+            });
+            if (messageRow) {
+                var message = messageRow.message;
+                var content = message === null || message === void 0 ? void 0 : message.content;
+                shape.firstMessage = {
+                    hasId: typeof (message === null || message === void 0 ? void 0 : message.id) === 'string',
+                    contentIsArray: Array.isArray(content),
+                    contentType: content === undefined ? 'undefined' : Array.isArray(content) ? 'array' : typeof content === "undefined" ? "undefined" : _type_of$3(content),
+                    // Node TYPES only. Message text is never recorded.
+                    nodeTypes: Array.isArray(content) ? content.slice(0, 12).map(function(node) {
+                        var _ref;
+                        return typeof node === 'string' ? 'string' : String((_ref = node === null || node === void 0 ? void 0 : node.type) !== null && _ref !== void 0 ? _ref : '?');
+                    }) : []
+                };
+                break;
+            }
+        }
+    } catch (err) {
+        _didIteratorError2 = true;
+        _iteratorError2 = err;
+    } finally{
+        try {
+            if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+                _iterator2.return();
+            }
+        } finally{
+            if (_didIteratorError2) {
+                throw _iteratorError2;
+            }
+        }
     }
     return shape;
 }
@@ -2353,6 +2541,9 @@ function createDiagnostics() {
             if (payload) {
                 lines.push('', '**Last payload**');
                 lines.push("> Args: `".concat(payload.argTypes.join(', '), "`"));
+                payload.argKeys.forEach(function(keys, index) {
+                    if (keys.length) lines.push("> Arg ".concat(index, " keys: `").concat(keys.join(', '), "`"));
+                });
                 lines.push("> Parsed as rows: ".concat(payload.parsedArray, " (").concat(payload.rowCount, " rows)"));
                 lines.push("> Row types: `".concat(JSON.stringify(payload.rowTypes), "`"));
                 if (payload.firstMessage) {
@@ -3656,16 +3847,21 @@ var index = {
                     var _loop = function() {
                         var method = _step1.value;
                         var _entry_module;
+                        // `generate` returns the row it builds, so it is patched after the
+                        // call; the others receive rows as arguments.
                         if (![
                             'updateRows',
                             'updateRowsSync',
                             'setRows',
-                            'insertRows'
-                        ].includes(method)) return "continue";
+                            'insertRows',
+                            'generate'
+                        ].includes(method)) {
+                            return "continue";
+                        }
                         var module = (_entry_module = entry.module) !== null && _entry_module !== void 0 ? _entry_module : undefined;
                         if (!module) return "continue";
                         if (!candidates.some(function(candidate) {
-                            return candidate.module === module;
+                            return candidate.module === module && candidate.method === method;
                         })) {
                             candidates.push({
                                 source: entry.source,
@@ -3711,6 +3907,13 @@ var index = {
             patchBefore: function patchBefore(parent, method, callback) {
                 return window.unbound.patcher.before(parent, method, function(ctx) {
                     callback(ctx.args);
+                }, {
+                    caller: STORE_NAME
+                });
+            },
+            patchAfter: function patchAfter(parent, method, callback) {
+                return window.unbound.patcher.after(parent, method, function(ctx) {
+                    return callback(ctx.args, ctx.result);
                 }, {
                     caller: STORE_NAME
                 });

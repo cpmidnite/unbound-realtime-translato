@@ -46,6 +46,13 @@ export interface PayloadShape {
   rowCount: number;
   /** `type` field of each row. */
   rowTypes: unknown[];
+  /**
+   * Keys of each object argument.
+   *
+   * The device reported `object, object` where a JSON string was assumed, and
+   * nothing identified where the rows actually were. These keys name the shape.
+   */
+  argKeys: string[][];
   /** For the first message row: whether content is an array, and node types. */
   firstMessage: {
     hasId: boolean;
@@ -79,7 +86,7 @@ export interface DiagnosticsRecorder {
 export function describePayload(args: any[]): PayloadShape {
   const argTypes = args.map((arg) => {
     if (arg === null) return 'null';
-    if (Array.isArray(arg)) return 'array';
+    if (Array.isArray(arg)) return `array(${arg.length})`;
     return typeof arg;
   });
 
@@ -88,43 +95,97 @@ export function describePayload(args: any[]): PayloadShape {
     parsedArray: false,
     rowCount: 0,
     rowTypes: [],
+    argKeys: [],
     firstMessage: null,
   };
 
-  const raw = args[1];
-  if (typeof raw !== 'string') return shape;
+  // Name the shape of every object argument. Without this, "object, object"
+  // gave no clue where the rows were.
+  for (const arg of args) {
+    if (!arg || typeof arg !== 'object' || Array.isArray(arg)) {
+      shape.argKeys.push([]);
+      continue;
+    }
 
-  let rows: unknown;
-  try {
-    rows = JSON.parse(raw);
-  } catch {
-    return shape;
+    try {
+      shape.argKeys.push(Object.keys(arg).slice(0, 14));
+    } catch {
+      shape.argKeys.push(['<unreadable>']);
+    }
   }
 
-  if (!Array.isArray(rows)) return shape;
+  // Rows may arrive as a JSON string, a live array, or nested in an object, and
+  // in any argument position. Find the first that looks like rows.
+  const candidates: unknown[] = [];
 
-  shape.parsedArray = true;
-  shape.rowCount = rows.length;
-  shape.rowTypes = rows.slice(0, 8).map((row: any) => row?.type);
+  for (const arg of args) {
+    if (typeof arg === 'string') {
+      if (!arg.startsWith('[') && !arg.startsWith('{')) continue;
 
-  const messageRow = rows.find((row: any) => row?.message);
-  if (messageRow) {
-    const message = (messageRow as any).message;
-    const content = message?.content;
+      try {
+        candidates.push(JSON.parse(arg));
+      } catch {
+        // not JSON
+      }
 
-    shape.firstMessage = {
-      hasId: typeof message?.id === 'string',
-      contentIsArray: Array.isArray(content),
-      contentType: content === undefined
-        ? 'undefined'
-        : (Array.isArray(content) ? 'array' : typeof content),
-      // Node TYPES only. Message text is never recorded.
-      nodeTypes: Array.isArray(content)
-        ? content.slice(0, 12).map((node: any) => (
-          typeof node === 'string' ? 'string' : String(node?.type ?? '?')
-        ))
-        : [],
-    };
+      continue;
+    }
+
+    if (Array.isArray(arg)) {
+      candidates.push(arg);
+      continue;
+    }
+
+    if (arg && typeof arg === 'object') {
+      candidates.push(arg);
+
+      for (const key of ['rows', 'data', 'items', 'messages', 'rowData']) {
+        try {
+          const nested = (arg as any)[key];
+          if (nested) candidates.push(nested);
+        } catch {
+          // getter threw
+        }
+      }
+    }
+  }
+
+  for (const candidate of candidates) {
+    const rows = Array.isArray(candidate)
+      ? candidate
+      // A single row object passed on its own.
+      : (candidate && typeof candidate === 'object' && (candidate as any).message
+        ? [candidate]
+        : null);
+
+    if (!rows) continue;
+
+    shape.parsedArray = true;
+    shape.rowCount = rows.length;
+    shape.rowTypes = rows.slice(0, 8).map((row: any) => row?.type);
+
+    const messageRow = rows.find((row: any) => row?.message);
+    if (messageRow) {
+      const message = (messageRow as any).message;
+      const content = message?.content;
+
+      shape.firstMessage = {
+        hasId: typeof message?.id === 'string',
+        contentIsArray: Array.isArray(content),
+        contentType: content === undefined
+          ? 'undefined'
+          : (Array.isArray(content) ? 'array' : typeof content),
+        // Node TYPES only. Message text is never recorded.
+        nodeTypes: Array.isArray(content)
+          ? content.slice(0, 12).map((node: any) => (
+            typeof node === 'string' ? 'string' : String(node?.type ?? '?')
+          ))
+          : [],
+      };
+
+      // A row with a message is the most informative; stop here.
+      break;
+    }
   }
 
   return shape;
@@ -226,6 +287,11 @@ export function createDiagnostics(): DiagnosticsRecorder {
       if (payload) {
         lines.push('', '**Last payload**');
         lines.push(`> Args: \`${payload.argTypes.join(', ')}\``);
+
+        payload.argKeys.forEach((keys, index) => {
+          if (keys.length) lines.push(`> Arg ${index} keys: \`${keys.join(', ')}\``);
+        });
+
         lines.push(`> Parsed as rows: ${payload.parsedArray} (${payload.rowCount} rows)`);
         lines.push(`> Row types: \`${JSON.stringify(payload.rowTypes)}\``);
 
