@@ -35,6 +35,14 @@ interface ControllerDependencies {
    * absent, the controller falls back to dispatching a local MESSAGE_UPDATE.
    */
   decorations?: DecorationStore;
+  /**
+   * Whether the render patch is actually delivering rows.
+   *
+   * A patch can be installed and never invoked, in which case recording
+   * decorations would silently show nothing. This is consulted per message so
+   * the store fallback engages until the render seam proves itself.
+   */
+  renderIsLive?(): boolean;
   /** Asks the message list to re-render after a decoration is recorded. */
   requestRerender?(channelId: string, messageId: string): void;
 }
@@ -227,7 +235,9 @@ export function createRealtimeController(
   ): void {
     // Preferred path: record the translation and let the render patch apply it.
     // Discord's store is left untouched, so nothing can overwrite the result.
-    if (dependencies.decorations) {
+    // Only usable once the render patch has proven it receives rows — an
+    // installed-but-never-invoked patch would otherwise swallow the line.
+    if (dependencies.decorations && dependencies.renderIsLive?.() !== false) {
       dependencies.decorations.set(messageId, {
         content: originalContent,
         line: `English: ${rawLine ?? line}`,
@@ -281,8 +291,9 @@ export function createRealtimeController(
     if (!active) return;
 
     // In decoration mode the store was never modified, so there is nothing to
-    // repair: the render patch re-applies the line on every render.
-    if (dependencies.decorations) return;
+    // repair: the render patch re-applies the line on every render. When the
+    // render seam is not live, the store path was used and must be reconciled.
+    if (dependencies.decorations && dependencies.renderIsLive?.() !== false) return;
 
     const entry = modified.get(messageId);
     if (!entry) return;

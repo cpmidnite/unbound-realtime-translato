@@ -34,6 +34,8 @@ export interface Diagnostics {
   storedDecorations: number;
   /** Most recent error, if any. */
   lastError: string | null;
+  /** Row-rendering surfaces found on the device. */
+  survey: Array<{ source: string; name: string; methods: string[] }>;
 }
 
 export interface PayloadShape {
@@ -67,6 +69,8 @@ export interface DiagnosticsRecorder {
   recordPayload(shape: PayloadShape): void;
   setStoredDecorations(count: number): void;
   recordError(error: unknown): void;
+  /** Records the device survey of render surfaces. */
+  setSurvey(entries: Array<{ source: string; name: string; methods: string[] }>): void;
   snapshot(): Diagnostics;
   /** Human-readable report for `!tr debug`. */
   report(): string;
@@ -139,6 +143,7 @@ export function createDiagnostics(): DiagnosticsRecorder {
     lastPayload: null,
     storedDecorations: 0,
     lastError: null,
+    survey: [],
   };
 
   return {
@@ -176,6 +181,15 @@ export function createDiagnostics(): DiagnosticsRecorder {
       state.lastError = error instanceof Error
         ? `${error.name}: ${error.message}`
         : String(error);
+    },
+    setSurvey(entries) {
+      // Strip the module reference: snapshot() serialises state, and a native
+      // object is not safely serialisable.
+      state.survey = entries.slice(0, 12).map((entry) => ({
+        source: entry.source,
+        name: entry.name,
+        methods: entry.methods,
+      }));
     },
     snapshot() {
       return JSON.parse(JSON.stringify(state));
@@ -228,6 +242,16 @@ export function createDiagnostics(): DiagnosticsRecorder {
 
       if (state.lastError) {
         lines.push('', `**Last error:** \`${state.lastError}\``);
+      }
+
+      if (state.survey.length) {
+        lines.push('', `**Render surfaces on this device (${state.survey.length})**`);
+        for (const entry of state.survey) {
+          lines.push(`> \`${entry.source}\` → \`${entry.name}\``);
+          lines.push(`>   \`${entry.methods.join(', ')}\``);
+        }
+      } else {
+        lines.push('', '**Render surfaces on this device:** none found.');
       }
 
       lines.push('', '_No message text is included in this report._');

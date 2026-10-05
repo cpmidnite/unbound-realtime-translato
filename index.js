@@ -26,7 +26,7 @@ function _object_spread$3(target) {
     }
     return target;
 }
-function _type_of$6(obj) {
+function _type_of$7(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -52,7 +52,7 @@ function normalizeLanguage(value) {
  */ function createChatConfig(store) {
     function readChats() {
         var chats = store.get('chats', {});
-        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$6(chats)) === 'object' ? chats : {};
+        return chats && (typeof chats === "undefined" ? "undefined" : _type_of$7(chats)) === 'object' ? chats : {};
     }
     function patch(channelId, changes) {
         var _chats_channelId;
@@ -65,7 +65,7 @@ function normalizeLanguage(value) {
         for: function _for(channelId) {
             if (typeof channelId !== 'string' || !channelId) return DISABLED;
             var entry = readChats()[channelId];
-            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$6(entry)) !== 'object') return DISABLED;
+            if (!entry || (typeof entry === "undefined" ? "undefined" : _type_of$7(entry)) !== 'object') return DISABLED;
             return {
                 incoming: entry.incoming === true,
                 outgoing: entry.outgoing === true,
@@ -110,13 +110,13 @@ function normalizeLanguage(value) {
             });
         }
     };
-}function _array_like_to_array$7(arr, len) {
+}function _array_like_to_array$8(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$6(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$7(arr);
+function _array_without_holes$7(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$8(arr);
 }
 function asyncGeneratorStep$2(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -161,12 +161,12 @@ function _instanceof$1(left, right) {
         return !!right[Symbol.hasInstance](left);
     } else return left instanceof right;
 }
-function _iterable_to_array$6(iter) {
+function _iterable_to_array$7(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$6() {
+function _non_iterable_spread$7() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread$2(target) {
@@ -202,8 +202,8 @@ function _object_spread_props$1(target, source) {
     }
     return target;
 }
-function _to_consumable_array$6(arr) {
-    return _array_without_holes$6(arr) || _iterable_to_array$6(arr) || _unsupported_iterable_to_array$7(arr) || _non_iterable_spread$6();
+function _to_consumable_array$7(arr) {
+    return _array_without_holes$7(arr) || _iterable_to_array$7(arr) || _unsupported_iterable_to_array$8(arr) || _non_iterable_spread$7();
 }
 function _ts_generator$2(thisArg, body) {
     var f, y, t, _ = {
@@ -304,13 +304,13 @@ function _ts_generator$2(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array$7(o, minLen) {
+function _unsupported_iterable_to_array$8(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$7(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$8(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$7(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$8(o, minLen);
 }
 var TRANSLATION_MARKER = '\n-# ↳ English: ';
 function toPlainMessage(message) {
@@ -462,9 +462,12 @@ function createRealtimeController(dependencies) {
     }
     function applyTranslation(current, messageId, channelId, originalContent, line, rawLine) {
         var _plain_channel_id;
+        var _dependencies_renderIsLive;
         // Preferred path: record the translation and let the render patch apply it.
         // Discord's store is left untouched, so nothing can overwrite the result.
-        if (dependencies.decorations) {
+        // Only usable once the render patch has proven it receives rows — an
+        // installed-but-never-invoked patch would otherwise swallow the line.
+        if (dependencies.decorations && ((_dependencies_renderIsLive = dependencies.renderIsLive) === null || _dependencies_renderIsLive === void 0 ? void 0 : _dependencies_renderIsLive.call(dependencies)) !== false) {
             var _dependencies_requestRerender;
             dependencies.decorations.set(messageId, {
                 content: originalContent,
@@ -509,10 +512,12 @@ function createRealtimeController(dependencies) {
    * a moment and then vanishes.
    */ function reconcile(messageId) {
         var _plain_channel_id;
+        var _dependencies_renderIsLive;
         if (!active) return;
         // In decoration mode the store was never modified, so there is nothing to
-        // repair: the render patch re-applies the line on every render.
-        if (dependencies.decorations) return;
+        // repair: the render patch re-applies the line on every render. When the
+        // render seam is not live, the store path was used and must be reconciled.
+        if (dependencies.decorations && ((_dependencies_renderIsLive = dependencies.renderIsLive) === null || _dependencies_renderIsLive === void 0 ? void 0 : _dependencies_renderIsLive.call(dependencies)) !== false) return;
         var entry = modified.get(messageId);
         if (!entry) return;
         var current = dependencies.getMessage(entry.channelId, messageId);
@@ -567,7 +572,7 @@ function createRealtimeController(dependencies) {
                 }, 0);
             };
             // Some payloads omit the id; re-check everything we have decorated.
-            for(var _iterator = _to_consumable_array$6(modified.keys())[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true)_loop();
+            for(var _iterator = _to_consumable_array$7(modified.keys())[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true)_loop();
         } catch (err) {
             _didIteratorError = true;
             _iteratorError = err;
@@ -668,7 +673,7 @@ function createRealtimeController(dependencies) {
         var _historyQueue;
         if (!active || !Array.isArray(messages) || messages.length === 0) return;
         var workGeneration = generation;
-        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$6(messages));
+        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$7(messages));
         void processHistoryQueue(workGeneration);
     }
     var onHistoryLoaded = function onHistoryLoaded(event) {
@@ -814,7 +819,7 @@ function createRealtimeController(dependencies) {
             restoreMessages();
         }
     };
-}function _type_of$5(obj) {
+}function _type_of$6(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -890,7 +895,7 @@ function maskTokens(input) {
     var restored = text;
     for(var index = 0; index < tokens.length; index += 1){
         var _ret = _loop(index);
-        if (_type_of$5(_ret) === "object") return _ret.v;
+        if (_type_of$6(_ret) === "object") return _ret.v;
     }
     if (restored.includes(SENTINEL)) return null;
     return restored;
@@ -903,15 +908,15 @@ function maskTokens(input) {
     var text = maskTokens(trimmed).text;
     var withoutSentinels = text.replace(new RegExp("".concat(SENTINEL, "\\d+").concat(SENTINEL), 'g'), '');
     return /[A-Za-z\u00C0-\u02FF\u0370-\u1FFF]/.test(withoutSentinels);
-}function _array_like_to_array$6(arr, len) {
+}function _array_like_to_array$7(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_with_holes$1(arr) {
+function _array_with_holes$2(arr) {
     if (Array.isArray(arr)) return arr;
 }
-function _iterable_to_array_limit$1(arr, i) {
+function _iterable_to_array_limit$2(arr, i) {
     var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"];
     if (_i == null) return;
     var _arr = [];
@@ -935,19 +940,19 @@ function _iterable_to_array_limit$1(arr, i) {
     }
     return _arr;
 }
-function _non_iterable_rest$1() {
+function _non_iterable_rest$2() {
     throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _sliced_to_array$1(arr, i) {
-    return _array_with_holes$1(arr) || _iterable_to_array_limit$1(arr, i) || _unsupported_iterable_to_array$6(arr, i) || _non_iterable_rest$1();
+function _sliced_to_array$2(arr, i) {
+    return _array_with_holes$2(arr) || _iterable_to_array_limit$2(arr, i) || _unsupported_iterable_to_array$7(arr, i) || _non_iterable_rest$2();
 }
-function _unsupported_iterable_to_array$6(o, minLen) {
+function _unsupported_iterable_to_array$7(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$6(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$7(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$6(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$7(o, minLen);
 }
 /**
  * Text-triggered configuration, handled inside the send patch.
@@ -1044,7 +1049,7 @@ function help() {
             reply: "".concat(describe(config, channelId), "\n\n`!tr help` for options.")
         };
     }
-    var _parts = _sliced_to_array$1(parts, 2), rawCommand = _parts[0], rawValue = _parts[1];
+    var _parts = _sliced_to_array$2(parts, 2), rawCommand = _parts[0], rawValue = _parts[1];
     var command = rawCommand.toLocaleLowerCase();
     if (command === 'debug' || command === 'diag') {
         var _ref;
@@ -1126,13 +1131,13 @@ function help() {
         handled: true,
         reply: "Unknown option `".concat(rawCommand, "`.\n\n").concat(help())
     };
-}function _array_like_to_array$5(arr, len) {
+}function _array_like_to_array$6(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$5(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$5(arr);
+function _array_without_holes$6(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$6(arr);
 }
 function asyncGeneratorStep$1(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -1171,12 +1176,12 @@ function _define_property$2(obj, key, value) {
     } else obj[key] = value;
     return obj;
 }
-function _iterable_to_array$5(iter) {
+function _iterable_to_array$6(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$5() {
+function _non_iterable_spread$6() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread$1(target) {
@@ -1212,8 +1217,8 @@ function _object_spread_props(target, source) {
     }
     return target;
 }
-function _to_consumable_array$5(arr) {
-    return _array_without_holes$5(arr) || _iterable_to_array$5(arr) || _unsupported_iterable_to_array$5(arr) || _non_iterable_spread$5();
+function _to_consumable_array$6(arr) {
+    return _array_without_holes$6(arr) || _iterable_to_array$6(arr) || _unsupported_iterable_to_array$6(arr) || _non_iterable_spread$6();
 }
 function _ts_generator$1(thisArg, body) {
     var f, y, t, _ = {
@@ -1314,17 +1319,17 @@ function _ts_generator$1(thisArg, body) {
         };
     }
 }
-function _type_of$4(obj) {
+function _type_of$5(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
-function _unsupported_iterable_to_array$5(o, minLen) {
+function _unsupported_iterable_to_array$6(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$5(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$6(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$5(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$6(o, minLen);
 }
 var MAX_TRACKED_MESSAGES = 500;
 /**
@@ -1426,7 +1431,7 @@ function generateNonce() {
                     var _ctx, _ctx1, _ctx2;
                     var channelId = typeof args[0] === 'string' ? args[0] : null;
                     var message = args[1];
-                    if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$5(args));
+                    if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$6(args));
                     var english = contentOf(message);
                     // Configuration triggers are swallowed: never sent, never
                     // translated. Checked before the per-chat gate so a chat can be
@@ -1453,8 +1458,8 @@ function generateNonce() {
                         return Promise.resolve(CANCELLED_SEND);
                     }
                     var config = dependencies.config.for(channelId);
-                    if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$5(args));
-                    if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$5(args));
+                    if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$6(args));
+                    if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$6(args));
                     var language = config.outgoingLanguage;
                     // The send becomes asynchronous: translate first, then hand the
                     // rewritten message to Discord's original implementation.
@@ -1502,7 +1507,7 @@ function generateNonce() {
                                     case 4:
                                         if (sent === english) return [
                                             2,
-                                            (_ctx = ctx).original.apply(_ctx, _to_consumable_array$5(args))
+                                            (_ctx = ctx).original.apply(_ctx, _to_consumable_array$6(args))
                                         ];
                                         nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
                                         outgoing = _object_spread_props(_object_spread$1({}, message), {
@@ -1519,13 +1524,13 @@ function generateNonce() {
                                         // Discord may assign its own nonce, so also index by content:
                                         // the echo is matched on either key.
                                         pendingByContent.set(contentKey(channelId, sent), record);
-                                        nextArgs = _to_consumable_array$5(args);
+                                        nextArgs = _to_consumable_array$6(args);
                                         nextArgs[1] = outgoing;
                                         // The nonce is honoured only in the options argument (index 3);
                                         // `message.nonce` alone is ignored, which leaves the echoed
                                         // message carrying a different nonce than the one we stored.
                                         existingOptions = nextArgs[3];
-                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$4(existingOptions)) === 'object' ? _object_spread_props(_object_spread$1({}, existingOptions), {
+                                        nextArgs[3] = existingOptions && (typeof existingOptions === "undefined" ? "undefined" : _type_of$5(existingOptions)) === 'object' ? _object_spread_props(_object_spread$1({}, existingOptions), {
                                             nonce: nonce
                                         }) : {
                                             nonce: nonce
@@ -1540,7 +1545,7 @@ function generateNonce() {
                                         ]);
                                         return [
                                             4,
-                                            (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$5(nextArgs))
+                                            (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$6(nextArgs))
                                         ];
                                     case 6:
                                         return [
@@ -1565,7 +1570,7 @@ function generateNonce() {
                     // Anything unexpected: send the message untouched rather than
                     // breaking Discord.
                     dependencies.onError(error);
-                    return (_ctx3 = ctx).original.apply(_ctx3, _to_consumable_array$5(args));
+                    return (_ctx3 = ctx).original.apply(_ctx3, _to_consumable_array$6(args));
                 }
             });
             // The patcher swaps the prop; if it still holds the same function, the
@@ -1618,32 +1623,32 @@ function generateNonce() {
             return pendingByNonce.size;
         }
     };
-}function _array_like_to_array$4(arr, len) {
+}function _array_like_to_array$5(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$4(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$4(arr);
+function _array_without_holes$5(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$5(arr);
 }
-function _iterable_to_array$4(iter) {
+function _iterable_to_array$5(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$4() {
+function _non_iterable_spread$5() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _to_consumable_array$4(arr) {
-    return _array_without_holes$4(arr) || _iterable_to_array$4(arr) || _unsupported_iterable_to_array$4(arr) || _non_iterable_spread$4();
+function _to_consumable_array$5(arr) {
+    return _array_without_holes$5(arr) || _iterable_to_array$5(arr) || _unsupported_iterable_to_array$5(arr) || _non_iterable_spread$5();
 }
-function _unsupported_iterable_to_array$4(o, minLen) {
+function _unsupported_iterable_to_array$5(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$4(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$5(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$4(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$5(o, minLen);
 }
 /** Discord's own enum values; BUILT_IN keeps the command client-side. */ var APPLICATION_COMMAND_TYPE_CHAT = 1;
 var APPLICATION_COMMAND_INPUT_TYPE_BUILT_IN = 0;
@@ -1725,7 +1730,7 @@ function formatStatus(config, channelId) {
             }).filter(function(value) {
                 return Number.isFinite(value);
             });
-            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array$4(ids)) : 0;
+            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array$5(ids)) : 0;
             // Stay strictly negative so we can never shadow a Discord command id.
             return String(Math.min(lowest, 0) - 1);
         } catch (unused) {
@@ -1872,7 +1877,7 @@ function formatStatus(config, channelId) {
                 var matches = function matches(command) {
                     return Array.isArray(requestedType) ? requestedType.includes(command.type) : requestedType === command.type;
                 };
-                return _to_consumable_array$4(result).concat(_to_consumable_array$4(registered.filter(matches)));
+                return _to_consumable_array$5(result).concat(_to_consumable_array$5(registered.filter(matches)));
             });
         },
         stop: function stop() {
@@ -1905,13 +1910,13 @@ function formatStatus(config, channelId) {
  *
  * Verified against the row shape used by working Vendetta/Revenge plugins
  * (`clean-urls`, `use-system-emoji`), which patch this same call.
- */ function _array_like_to_array$3(arr, len) {
+ */ function _array_like_to_array$4(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$3(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
+function _array_without_holes$4(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$4(arr);
 }
 function _define_property$1(obj, key, value) {
     if (key in obj) {
@@ -1924,28 +1929,28 @@ function _define_property$1(obj, key, value) {
     } else obj[key] = value;
     return obj;
 }
-function _iterable_to_array$3(iter) {
+function _iterable_to_array$4(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$3() {
+function _non_iterable_spread$4() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
-function _to_consumable_array$3(arr) {
-    return _array_without_holes$3(arr) || _iterable_to_array$3(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$3();
+function _to_consumable_array$4(arr) {
+    return _array_without_holes$4(arr) || _iterable_to_array$4(arr) || _unsupported_iterable_to_array$4(arr) || _non_iterable_spread$4();
 }
-function _type_of$3(obj) {
+function _type_of$4(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
-function _unsupported_iterable_to_array$3(o, minLen) {
+function _unsupported_iterable_to_array$4(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$4(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$4(o, minLen);
 }
 /** Marks our injected nodes so a row is never decorated twice. */ var INJECTED_FLAG = '__realtimeTranslator';
 /**
@@ -1956,7 +1961,7 @@ function _unsupported_iterable_to_array$3(o, minLen) {
     if (!Array.isArray(content)) return '';
     return content.map(function(node) {
         if (typeof node === 'string') return node;
-        if (!node || (typeof node === "undefined" ? "undefined" : _type_of$3(node)) !== 'object') return '';
+        if (!node || (typeof node === "undefined" ? "undefined" : _type_of$4(node)) !== 'object') return '';
         if (node.type === 'text' && typeof node.content === 'string') return node.content;
         if (node.type === 'emoji' && typeof node.surrogate === 'string') return node.surrogate;
         if (node.type === 'customEmoji' && typeof node.alt === 'string') return node.alt;
@@ -1994,7 +1999,7 @@ function _unsupported_iterable_to_array$3(o, minLen) {
 }
 function alreadyDecorated(content) {
     return content.some(function(node) {
-        return node && (typeof node === "undefined" ? "undefined" : _type_of$3(node)) === 'object' && node[INJECTED_FLAG];
+        return node && (typeof node === "undefined" ? "undefined" : _type_of$4(node)) === 'object' && node[INJECTED_FLAG];
     });
 }
 /**
@@ -2015,7 +2020,7 @@ function alreadyDecorated(content) {
     // The row carries different text than what was translated: leave it alone
     // rather than label an edited message with a stale translation.
     if (contentToText(content).trim() !== decoration.content.trim()) return false;
-    message.content = _to_consumable_array$3(content).concat(_to_consumable_array$3(buildDecorationNodes(decoration.line)));
+    message.content = _to_consumable_array$4(content).concat(_to_consumable_array$4(buildDecorationNodes(decoration.line)));
     return true;
 }
 /** Mutates every message row in a parsed `updateRows` payload. */ function decorateRows(rows, getDecoration) {
@@ -2185,7 +2190,7 @@ function createDecorationStore() {
         return !!right[Symbol.hasInstance](left);
     } else return left instanceof right;
 }
-function _type_of$2(obj) {
+function _type_of$3(obj) {
     "@swc/helpers - typeof";
     return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
 }
@@ -2193,7 +2198,7 @@ function describePayload(args) {
     var argTypes = args.map(function(arg) {
         if (arg === null) return 'null';
         if (Array.isArray(arg)) return 'array';
-        return typeof arg === "undefined" ? "undefined" : _type_of$2(arg);
+        return typeof arg === "undefined" ? "undefined" : _type_of$3(arg);
     });
     var shape = {
         argTypes: argTypes,
@@ -2225,7 +2230,7 @@ function describePayload(args) {
         shape.firstMessage = {
             hasId: typeof (message === null || message === void 0 ? void 0 : message.id) === 'string',
             contentIsArray: Array.isArray(content),
-            contentType: content === undefined ? 'undefined' : Array.isArray(content) ? 'array' : typeof content === "undefined" ? "undefined" : _type_of$2(content),
+            contentType: content === undefined ? 'undefined' : Array.isArray(content) ? 'array' : typeof content === "undefined" ? "undefined" : _type_of$3(content),
             // Node TYPES only. Message text is never recorded.
             nodeTypes: Array.isArray(content) ? content.slice(0, 12).map(function(node) {
                 var _ref;
@@ -2251,7 +2256,8 @@ function createDiagnostics() {
         decorated: 0,
         lastPayload: null,
         storedDecorations: 0,
-        lastError: null
+        lastError: null,
+        survey: []
     };
     return {
         setChatModule: function setChatModule(resolved, name, methods) {
@@ -2290,6 +2296,17 @@ function createDiagnostics() {
         },
         recordError: function recordError(error) {
             state.lastError = _instanceof(error, Error) ? "".concat(error.name, ": ").concat(error.message) : String(error);
+        },
+        setSurvey: function setSurvey(entries) {
+            // Strip the module reference: snapshot() serialises state, and a native
+            // object is not safely serialisable.
+            state.survey = entries.slice(0, 12).map(function(entry) {
+                return {
+                    source: entry.source,
+                    name: entry.name,
+                    methods: entry.methods
+                };
+            });
         },
         snapshot: function snapshot() {
             return JSON.parse(JSON.stringify(state));
@@ -2351,10 +2368,312 @@ function createDiagnostics() {
             if (state.lastError) {
                 lines.push('', "**Last error:** `".concat(state.lastError, "`"));
             }
+            if (state.survey.length) {
+                lines.push('', "**Render surfaces on this device (".concat(state.survey.length, ")**"));
+                var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+                try {
+                    for(var _iterator1 = state.survey[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+                        var entry = _step1.value;
+                        lines.push("> `".concat(entry.source, "` → `").concat(entry.name, "`"));
+                        lines.push(">   `".concat(entry.methods.join(', '), "`"));
+                    }
+                } catch (err) {
+                    _didIteratorError1 = true;
+                    _iteratorError1 = err;
+                } finally{
+                    try {
+                        if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                            _iterator1.return();
+                        }
+                    } finally{
+                        if (_didIteratorError1) {
+                            throw _iteratorError1;
+                        }
+                    }
+                }
+            } else {
+                lines.push('', '**Render surfaces on this device:** none found.');
+            }
             lines.push('', '_No message text is included in this report._');
             return lines.join('\n');
         }
     };
+}/**
+ * Reports what row-rendering surfaces actually exist on this device.
+ *
+ * Three releases guessed at the seam and each produced an installed patch that
+ * was never invoked. Guessing from here is unjustified: the next step needs a
+ * list of what the running client really exposes.
+ *
+ * This only reads names and shapes — never message content — so the output is
+ * safe to share.
+ */ function _array_like_to_array$3(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_with_holes$1(arr) {
+    if (Array.isArray(arr)) return arr;
+}
+function _array_without_holes$3(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$3(arr);
+}
+function _iterable_to_array$3(iter) {
+    if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
+        return Array.from(iter);
+    }
+}
+function _iterable_to_array_limit$1(arr, i) {
+    var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"];
+    if (_i == null) return;
+    var _arr = [];
+    var _n = true;
+    var _d = false;
+    var _s, _e;
+    try {
+        for(_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true){
+            _arr.push(_s.value);
+            if (i && _arr.length === i) break;
+        }
+    } catch (err) {
+        _d = true;
+        _e = err;
+    } finally{
+        try {
+            if (!_n && _i["return"] != null) _i["return"]();
+        } finally{
+            if (_d) throw _e;
+        }
+    }
+    return _arr;
+}
+function _non_iterable_rest$1() {
+    throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _non_iterable_spread$3() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _sliced_to_array$1(arr, i) {
+    return _array_with_holes$1(arr) || _iterable_to_array_limit$1(arr, i) || _unsupported_iterable_to_array$3(arr, i) || _non_iterable_rest$1();
+}
+function _to_consumable_array$3(arr) {
+    return _array_without_holes$3(arr) || _iterable_to_array$3(arr) || _unsupported_iterable_to_array$3(arr) || _non_iterable_spread$3();
+}
+function _type_of$2(obj) {
+    "@swc/helpers - typeof";
+    return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj;
+}
+function _unsupported_iterable_to_array$3(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array$3(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$3(o, minLen);
+}
+/** Keys that indicate a module deals in chat rows. */ var INTERESTING_METHODS = [
+    'updateRows',
+    'updateRowsSync',
+    'setRows',
+    'insertRows',
+    'generate',
+    'generateRow'
+];
+function functionKeys(value) {
+    if (!value || (typeof value === "undefined" ? "undefined" : _type_of$2(value)) !== 'object' && typeof value !== 'function') return [];
+    var keys = new Set();
+    try {
+        var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+        try {
+            for(var _iterator = Object.keys(value)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                var key = _step.value;
+                try {
+                    if (typeof value[key] === 'function') keys.add(key);
+                } catch (unused) {}
+            }
+        } catch (err) {
+            _didIteratorError = true;
+            _iteratorError = err;
+        } finally{
+            try {
+                if (!_iteratorNormalCompletion && _iterator.return != null) {
+                    _iterator.return();
+                }
+            } finally{
+                if (_didIteratorError) {
+                    throw _iteratorError;
+                }
+            }
+        }
+    } catch (unused) {}
+    // Own non-enumerable properties: class methods live here, so Object.keys
+    // alone would miss a prototype's own methods entirely.
+    try {
+        var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+        try {
+            for(var _iterator1 = Object.getOwnPropertyNames(value)[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true){
+                var key1 = _step1.value;
+                if (key1 === 'constructor' || key1 === 'prototype' || key1 === 'caller' || key1 === 'arguments') {
+                    continue;
+                }
+                try {
+                    if (typeof value[key1] === 'function') keys.add(key1);
+                } catch (unused) {}
+            }
+        } catch (err) {
+            _didIteratorError1 = true;
+            _iteratorError1 = err;
+        } finally{
+            try {
+                if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                    _iterator1.return();
+                }
+            } finally{
+                if (_didIteratorError1) {
+                    throw _iteratorError1;
+                }
+            }
+        }
+    } catch (unused) {}
+    // Inherited methods, for instances.
+    try {
+        var proto = Object.getPrototypeOf(value);
+        if (proto && proto !== Object.prototype && proto !== Function.prototype) {
+            var _iteratorNormalCompletion2 = true, _didIteratorError2 = false, _iteratorError2 = undefined;
+            try {
+                for(var _iterator2 = Object.getOwnPropertyNames(proto)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true){
+                    var key2 = _step2.value;
+                    if (key2 === 'constructor') continue;
+                    try {
+                        if (typeof proto[key2] === 'function') keys.add(key2);
+                    } catch (unused) {}
+                }
+            } catch (err) {
+                _didIteratorError2 = true;
+                _iteratorError2 = err;
+            } finally{
+                try {
+                    if (!_iteratorNormalCompletion2 && _iterator2.return != null) {
+                        _iterator2.return();
+                    }
+                } finally{
+                    if (_didIteratorError2) {
+                        throw _iteratorError2;
+                    }
+                }
+            }
+        }
+    } catch (unused) {}
+    return _to_consumable_array$3(keys).slice(0, 24);
+}
+/**
+ * Lists every plausible row-rendering surface.
+ *
+ * @returns Entries describing what exists, for the diagnostics report.
+ */ function surveyRenderSurfaces(dependencies) {
+    var entries = [];
+    var seen = new Set();
+    var consider = function consider(source, name, value) {
+        if (!value || seen.has(value)) return;
+        var methods = functionKeys(value);
+        if (!methods.some(function(method) {
+            return INTERESTING_METHODS.includes(method);
+        })) return;
+        seen.add(value);
+        entries.push({
+            source: source,
+            name: name,
+            methods: methods,
+            module: value
+        });
+    };
+    // Every native module whose name OR shape suggests chat rows. Unlike the
+    // patching path, this does not filter by name, so a differently-named module
+    // still shows up.
+    for(var _i = 0, _iter = [
+        [
+            'nativeModuleProxy',
+            dependencies.nativeModuleProxy
+        ],
+        [
+            'NativeModules',
+            dependencies.nativeModules
+        ]
+    ]; _i < _iter.length; _i++){
+        var _iter__i = _sliced_to_array$1(_iter[_i], 2), source = _iter__i[0], map = _iter__i[1];
+        if (!map || (typeof map === "undefined" ? "undefined" : _type_of$2(map)) !== 'object') continue;
+        var keys = void 0;
+        try {
+            keys = Object.keys(map);
+        } catch (unused) {
+            continue;
+        }
+        var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+        try {
+            for(var _iterator = keys.slice(0, 400)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                var key = _step.value;
+                try {
+                    consider(source, key, map[key]);
+                } catch (unused) {}
+            }
+        } catch (err) {
+            _didIteratorError = true;
+            _iteratorError = err;
+        } finally{
+            try {
+                if (!_iteratorNormalCompletion && _iterator.return != null) {
+                    _iterator.return();
+                }
+            } finally{
+                if (_didIteratorError) {
+                    throw _iteratorError;
+                }
+            }
+        }
+    }
+    // JS-side row builders, which is how desktop BetterDiscord hooks rendering.
+    for(var _i1 = 0, _iter1 = [
+        [
+            'updateRows'
+        ],
+        [
+            'generate',
+            'rowData'
+        ],
+        [
+            'generate'
+        ]
+    ]; _i1 < _iter1.length; _i1++){
+        var props = _iter1[_i1];
+        try {
+            var _dependencies_findByProps;
+            var _dependencies_findByProps1;
+            var found = (_dependencies_findByProps1 = dependencies.findByProps) === null || _dependencies_findByProps1 === void 0 ? void 0 : (_dependencies_findByProps = _dependencies_findByProps1).call.apply(_dependencies_findByProps, [
+                dependencies
+            ].concat(_to_consumable_array$3(props)));
+            if (found) consider("findByProps(".concat(props.join(','), ")"), props.join('+'), found);
+        } catch (unused) {}
+    }
+    for(var _i2 = 0, _iter2 = [
+        'RowManager',
+        'ChatManager',
+        'MessageRow'
+    ]; _i2 < _iter2.length; _i2++){
+        var name = _iter2[_i2];
+        try {
+            var _ref;
+            var _dependencies_findByName;
+            var found1 = (_dependencies_findByName = dependencies.findByName) === null || _dependencies_findByName === void 0 ? void 0 : _dependencies_findByName.call(dependencies, name, false);
+            var target = (_ref = found1 === null || found1 === void 0 ? void 0 : found1.default) !== null && _ref !== void 0 ? _ref : found1;
+            if (target) {
+                consider("findByName(".concat(name, ")"), name, target);
+                if (typeof target === 'function' && target.prototype) {
+                    consider("findByName(".concat(name, ").prototype"), name, target.prototype);
+                }
+            }
+        } catch (unused) {}
+    }
+    return entries;
 }/**
  * Finds every reachable reference to the chat module.
  *
@@ -3284,7 +3603,7 @@ var index = {
     start: function start() {
         var _native, _metro, _metro1;
         var _ref;
-        var _globalThis, _metro_common_ReactNative, _metro_common_ReactNative1, _candidates_;
+        var _globalThis, _metro_common_ReactNative, _metro_common_ReactNative1, _globalThis1, _metro_common_ReactNative2, _candidates_;
         if (controller) return;
         var translator = createTranslationClient();
         var config = createChatConfig(window.unbound.storage.getStore(STORE_NAME));
@@ -3306,6 +3625,86 @@ var index = {
             nativeModules: (_metro_common_ReactNative = window.unbound.metro.common.ReactNative) === null || _metro_common_ReactNative === void 0 ? void 0 : _metro_common_ReactNative.NativeModules,
             turboModuleRegistry: (_metro_common_ReactNative1 = window.unbound.metro.common.ReactNative) === null || _metro_common_ReactNative1 === void 0 ? void 0 : _metro_common_ReactNative1.TurboModuleRegistry
         });
+        // Three releases guessed at the seam and each patch was never invoked, so
+        // enumerate what this client really exposes rather than guess a fourth
+        // time. Anything the survey finds is also patched below.
+        var surveyed = surveyRenderSurfaces({
+            nativeModuleProxy: (_globalThis1 = globalThis) === null || _globalThis1 === void 0 ? void 0 : _globalThis1.nativeModuleProxy,
+            nativeModules: (_metro_common_ReactNative2 = window.unbound.metro.common.ReactNative) === null || _metro_common_ReactNative2 === void 0 ? void 0 : _metro_common_ReactNative2.NativeModules,
+            findByProps: function findByProps() {
+                for(var _len = arguments.length, props = new Array(_len), _key = 0; _key < _len; _key++){
+                    props[_key] = arguments[_key];
+                }
+                var _metro_findByProps;
+                var _metro_findByProps1;
+                return (_metro_findByProps1 = window.unbound.metro.findByProps) === null || _metro_findByProps1 === void 0 ? void 0 : (_metro_findByProps = _metro_findByProps1).call.apply(_metro_findByProps, [
+                    window.unbound.metro
+                ].concat(_to_consumable_array(props)));
+            },
+            findByName: function findByName(name, defaultExport) {
+                var _metro_findByName;
+                return (_metro_findByName = window.unbound.metro.findByName) === null || _metro_findByName === void 0 ? void 0 : _metro_findByName.call(window.unbound.metro, name, defaultExport);
+            }
+        });
+        diagnostics.setSurvey(surveyed);
+        var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+        try {
+            for(var _iterator = surveyed[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                var entry = _step.value;
+                var _iteratorNormalCompletion1 = true, _didIteratorError1 = false, _iteratorError1 = undefined;
+                try {
+                    var _loop = function() {
+                        var method = _step1.value;
+                        var _entry_module;
+                        if (![
+                            'updateRows',
+                            'updateRowsSync',
+                            'setRows',
+                            'insertRows'
+                        ].includes(method)) return "continue";
+                        var module = (_entry_module = entry.module) !== null && _entry_module !== void 0 ? _entry_module : undefined;
+                        if (!module) return "continue";
+                        if (!candidates.some(function(candidate) {
+                            return candidate.module === module;
+                        })) {
+                            candidates.push({
+                                source: entry.source,
+                                name: entry.name,
+                                module: module,
+                                method: method
+                            });
+                        }
+                    };
+                    for(var _iterator1 = entry.methods[Symbol.iterator](), _step1; !(_iteratorNormalCompletion1 = (_step1 = _iterator1.next()).done); _iteratorNormalCompletion1 = true)_loop();
+                } catch (err) {
+                    _didIteratorError1 = true;
+                    _iteratorError1 = err;
+                } finally{
+                    try {
+                        if (!_iteratorNormalCompletion1 && _iterator1.return != null) {
+                            _iterator1.return();
+                        }
+                    } finally{
+                        if (_didIteratorError1) {
+                            throw _iteratorError1;
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            _didIteratorError = true;
+            _iteratorError = err;
+        } finally{
+            try {
+                if (!_iteratorNormalCompletion && _iterator.return != null) {
+                    _iterator.return();
+                }
+            } finally{
+                if (_didIteratorError) {
+                    throw _iteratorError;
+                }
+            }
+        }
         diagnostics.setChatModule(candidates.length > 0, (_ref = (_candidates_ = candidates[0]) === null || _candidates_ === void 0 ? void 0 : _candidates_.name) !== null && _ref !== void 0 ? _ref : null, candidates[0] ? methodsOf(candidates[0].module) : []);
         render = createRenderController({
             candidates: candidates,
@@ -3404,6 +3803,12 @@ var index = {
             config: config,
             outgoing: outgoing,
             decorations: renderPatched ? decorations : undefined,
+            // A patch can install and never be invoked, which the device reported.
+            // Treat the render path as usable only once it has actually delivered a
+            // payload, so the store fallback covers the gap instead of nothing.
+            renderIsLive: function renderIsLive() {
+                return diagnostics.snapshot().renderCalls > 0;
+            },
             requestRerender: renderPatched ? requestRerender : undefined,
             getMessage: function getMessage(channelId, messageId) {
                 var _messageStore_getMessage;

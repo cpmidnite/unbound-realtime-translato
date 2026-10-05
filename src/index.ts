@@ -7,6 +7,7 @@ import { createCommandController, type CommandController } from './commands';
 import { createRenderController, type RenderController } from './render-patch';
 import { createDecorationStore } from './decorations';
 import { createDiagnostics, describePayload } from './diagnostics';
+import { surveyRenderSurfaces } from './survey';
 import { collectChatModules, methodsOf } from './find-chat-module';
 import { resolvePatchTarget } from './patch-target';
 import { getSelectedChannelMessages } from './messages';
@@ -78,6 +79,33 @@ export default {
       nativeModules: (metro.common.ReactNative as any)?.NativeModules,
       turboModuleRegistry: (metro.common.ReactNative as any)?.TurboModuleRegistry,
     });
+
+    // Three releases guessed at the seam and each patch was never invoked, so
+    // enumerate what this client really exposes rather than guess a fourth
+    // time. Anything the survey finds is also patched below.
+    const surveyed = surveyRenderSurfaces({
+      nativeModuleProxy: (globalThis as any)?.nativeModuleProxy,
+      nativeModules: (metro.common.ReactNative as any)?.NativeModules,
+      findByProps: (...props: string[]) => (metro as any).findByProps?.(...props),
+      findByName: (name: string, defaultExport?: boolean) => (
+        (metro as any).findByName?.(name, defaultExport)
+      ),
+    });
+
+    diagnostics.setSurvey(surveyed);
+
+    for (const entry of surveyed) {
+      for (const method of entry.methods) {
+        if (!['updateRows', 'updateRowsSync', 'setRows', 'insertRows'].includes(method)) continue;
+
+        const module = (entry as any).module ?? undefined;
+        if (!module) continue;
+
+        if (!candidates.some((candidate) => candidate.module === module)) {
+          candidates.push({ source: entry.source, name: entry.name, module, method });
+        }
+      }
+    }
 
     diagnostics.setChatModule(
       candidates.length > 0,
@@ -174,6 +202,10 @@ export default {
       config,
       outgoing,
       decorations: renderPatched ? decorations : undefined,
+      // A patch can install and never be invoked, which the device reported.
+      // Treat the render path as usable only once it has actually delivered a
+      // payload, so the store fallback covers the gap instead of nothing.
+      renderIsLive: () => diagnostics.snapshot().renderCalls > 0,
       requestRerender: renderPatched ? requestRerender : undefined,
       getMessage: (channelId, messageId) => messageStore?.getMessage?.(channelId, messageId),
       getLoadedMessages: () => getSelectedChannelMessages(
