@@ -110,13 +110,13 @@ function normalizeLanguage(value) {
             });
         }
     };
-}function _array_like_to_array$1(arr, len) {
+}function _array_like_to_array$2(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes$1(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array$1(arr);
+function _array_without_holes$2(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$2(arr);
 }
 function asyncGeneratorStep$2(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -161,12 +161,12 @@ function _instanceof(left, right) {
         return !!right[Symbol.hasInstance](left);
     } else return left instanceof right;
 }
-function _iterable_to_array$1(iter) {
+function _iterable_to_array$2(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread$1() {
+function _non_iterable_spread$2() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread$1(target) {
@@ -202,8 +202,8 @@ function _object_spread_props$1(target, source) {
     }
     return target;
 }
-function _to_consumable_array$1(arr) {
-    return _array_without_holes$1(arr) || _iterable_to_array$1(arr) || _unsupported_iterable_to_array$1(arr) || _non_iterable_spread$1();
+function _to_consumable_array$2(arr) {
+    return _array_without_holes$2(arr) || _iterable_to_array$2(arr) || _unsupported_iterable_to_array$2(arr) || _non_iterable_spread$2();
 }
 function _ts_generator$2(thisArg, body) {
     var f, y, t, _ = {
@@ -304,13 +304,13 @@ function _ts_generator$2(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array$1(o, minLen) {
+function _unsupported_iterable_to_array$2(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array$1(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$2(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$1(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$2(o, minLen);
 }
 var TRANSLATION_MARKER = '\n-# ↳ English: ';
 function toPlainMessage(message) {
@@ -348,7 +348,7 @@ function createRealtimeController(dependencies) {
     var processingHistoryGeneration;
     function translateMessage(message, workGeneration) {
         return _async_to_generator$2(function() {
-            var _dependencies_config, _dependencies_users_getCurrentUser, messageId, channelId, content, config, currentUserId, isOwnMessage, _dependencies_getMessage, translation, current, safeTranslation;
+            var _message_author, _dependencies_config, _dependencies_users_getCurrentUser, messageId, channelId, content, config, currentUserId, isOwnMessage, _dependencies_getMessage, translation, current, safeTranslation;
             return _ts_generator$2(this, function(_state) {
                 switch(_state.label){
                     case 0:
@@ -356,6 +356,10 @@ function createRealtimeController(dependencies) {
                         channelId = channelIdOf(message);
                         content = typeof (message === null || message === void 0 ? void 0 : message.content) === 'string' ? message.content : '';
                         if (!active || !messageId || !channelId || !content.trim() || content.includes(TRANSLATION_MARKER) || pending.get(messageId) === workGeneration) return [
+                            2
+                        ];
+                        // Locally injected Clyde/bot replies are ours, not conversation.
+                        if ((message === null || message === void 0 ? void 0 : (_message_author = message.author) === null || _message_author === void 0 ? void 0 : _message_author.bot) === true) return [
                             2
                         ];
                         config = (_dependencies_config = dependencies.config) === null || _dependencies_config === void 0 ? void 0 : _dependencies_config.for(channelId);
@@ -539,7 +543,7 @@ function createRealtimeController(dependencies) {
         var _historyQueue;
         if (!active || !Array.isArray(messages) || messages.length === 0) return;
         var workGeneration = generation;
-        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$1(messages));
+        (_historyQueue = historyQueue).push.apply(_historyQueue, _to_consumable_array$2(messages));
         void processHistoryQueue(workGeneration);
     }
     var onHistoryLoaded = function onHistoryLoaded(event) {
@@ -727,13 +731,13 @@ function maskTokens(input) {
     var text = maskTokens(trimmed).text;
     var withoutSentinels = text.replace(new RegExp("".concat(SENTINEL, "\\d+").concat(SENTINEL), 'g'), '');
     return /[A-Za-z\u00C0-\u02FF\u0370-\u1FFF]/.test(withoutSentinels);
-}function _array_like_to_array(arr, len) {
+}function _array_like_to_array$1(arr, len) {
     if (len == null || len > arr.length) len = arr.length;
     for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
     return arr2;
 }
-function _array_without_holes(arr) {
-    if (Array.isArray(arr)) return _array_like_to_array(arr);
+function _array_without_holes$1(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array$1(arr);
 }
 function asyncGeneratorStep$1(gen, resolve, reject, _next, _throw, key, arg) {
     try {
@@ -772,12 +776,12 @@ function _define_property(obj, key, value) {
     } else obj[key] = value;
     return obj;
 }
-function _iterable_to_array(iter) {
+function _iterable_to_array$1(iter) {
     if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
         return Array.from(iter);
     }
 }
-function _non_iterable_spread() {
+function _non_iterable_spread$1() {
     throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 function _object_spread(target) {
@@ -813,8 +817,8 @@ function _object_spread_props(target, source) {
     }
     return target;
 }
-function _to_consumable_array(arr) {
-    return _array_without_holes(arr) || _iterable_to_array(arr) || _unsupported_iterable_to_array(arr) || _non_iterable_spread();
+function _to_consumable_array$1(arr) {
+    return _array_without_holes$1(arr) || _iterable_to_array$1(arr) || _unsupported_iterable_to_array$1(arr) || _non_iterable_spread$1();
 }
 function _ts_generator$1(thisArg, body) {
     var f, y, t, _ = {
@@ -915,13 +919,13 @@ function _ts_generator$1(thisArg, body) {
         };
     }
 }
-function _unsupported_iterable_to_array(o, minLen) {
+function _unsupported_iterable_to_array$1(o, minLen) {
     if (!o) return;
-    if (typeof o === "string") return _array_like_to_array(o, minLen);
+    if (typeof o === "string") return _array_like_to_array$1(o, minLen);
     var n = Object.prototype.toString.call(o).slice(8, -1);
     if (n === "Object" && o.constructor) n = o.constructor.name;
     if (n === "Map" || n === "Set") return Array.from(n);
-    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array(o, minLen);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array$1(o, minLen);
 }
 var MAX_TRACKED_MESSAGES = 500;
 function contentOf(message) {
@@ -1002,11 +1006,11 @@ function generateNonce() {
                 var args = ctx.args;
                 var channelId = typeof args[0] === 'string' ? args[0] : null;
                 var message = args[1];
-                if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array(args));
+                if (!channelId || !message) return (_ctx = ctx).original.apply(_ctx, _to_consumable_array$1(args));
                 var config = dependencies.config.for(channelId);
-                if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array(args));
+                if (!config.outgoing) return (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$1(args));
                 var english = contentOf(message);
-                if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array(args));
+                if (!isTranslatableOutgoing(english)) return (_ctx2 = ctx).original.apply(_ctx2, _to_consumable_array$1(args));
                 var language = config.outgoingLanguage;
                 // The send becomes asynchronous: translate first, then hand the
                 // rewritten message to Discord's original implementation.
@@ -1047,7 +1051,7 @@ function generateNonce() {
                                 case 4:
                                     if (sent === english) return [
                                         2,
-                                        (_ctx = ctx).original.apply(_ctx, _to_consumable_array(args))
+                                        (_ctx = ctx).original.apply(_ctx, _to_consumable_array$1(args))
                                     ];
                                     nonce = (_nonceOf = nonceOf(message)) !== null && _nonceOf !== void 0 ? _nonceOf : generateNonce();
                                     outgoing = _object_spread_props(_object_spread({}, message), {
@@ -1061,7 +1065,7 @@ function generateNonce() {
                                         language: language
                                     };
                                     pendingByNonce.set(nonce, record);
-                                    nextArgs = _to_consumable_array(args);
+                                    nextArgs = _to_consumable_array$1(args);
                                     nextArgs[1] = outgoing;
                                     _state.label = 5;
                                 case 5:
@@ -1073,7 +1077,7 @@ function generateNonce() {
                                     ]);
                                     return [
                                         4,
-                                        (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array(nextArgs))
+                                        (_ctx1 = ctx).original.apply(_ctx1, _to_consumable_array$1(nextArgs))
                                     ];
                                 case 6:
                                     return [
@@ -1114,6 +1118,268 @@ function generateNonce() {
         },
         pendingNonces: function pendingNonces() {
             return pendingByNonce.size;
+        }
+    };
+}function _array_like_to_array(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+    for(var i = 0, arr2 = new Array(len); i < len; i++)arr2[i] = arr[i];
+    return arr2;
+}
+function _array_without_holes(arr) {
+    if (Array.isArray(arr)) return _array_like_to_array(arr);
+}
+function _iterable_to_array(iter) {
+    if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) {
+        return Array.from(iter);
+    }
+}
+function _non_iterable_spread() {
+    throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _to_consumable_array(arr) {
+    return _array_without_holes(arr) || _iterable_to_array(arr) || _unsupported_iterable_to_array(arr) || _non_iterable_spread();
+}
+function _unsupported_iterable_to_array(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _array_like_to_array(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(n);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _array_like_to_array(o, minLen);
+}
+/** Discord's own enum values; BUILT_IN keeps the command client-side. */ var APPLICATION_COMMAND_TYPE_CHAT = 1;
+var APPLICATION_COMMAND_INPUT_TYPE_BUILT_IN = 0;
+var OPTION_TYPE_BOOLEAN = 5;
+var OPTION_TYPE_STRING = 3;
+var SUPPORTED_LANGUAGES = [
+    'es',
+    'en',
+    'pt',
+    'fr',
+    'de',
+    'it',
+    'nl',
+    'ru',
+    'ja',
+    'ko',
+    'zh',
+    'hi',
+    'ar',
+    'tr',
+    'pl',
+    'id',
+    'vi',
+    'th'
+];
+function booleanArg(args, name) {
+    var arg = args.find(function(entry) {
+        return (entry === null || entry === void 0 ? void 0 : entry.name) === name;
+    });
+    if (!arg) return undefined;
+    if (typeof arg.value === 'boolean') return arg.value;
+    if (arg.value === 'true') return true;
+    if (arg.value === 'false') return false;
+    return undefined;
+}
+function stringArg(args, name) {
+    var arg = args.find(function(entry) {
+        return (entry === null || entry === void 0 ? void 0 : entry.name) === name;
+    });
+    if (!arg || typeof arg.value !== 'string') return undefined;
+    var trimmed = arg.value.trim();
+    return trimmed ? trimmed : undefined;
+}
+function formatStatus(config, channelId) {
+    var current = config.for(channelId);
+    var language = current.outgoingLanguage.toUpperCase();
+    return [
+        '**Translation — this chat**',
+        "> Receive: ".concat(current.incoming ? "on (→ English)" : 'off'),
+        "> Send: ".concat(current.outgoing ? "on (→ ".concat(language, ")") : 'off'),
+        "> Show my English: ".concat(current.showOwnEnglish ? 'on' : 'off'),
+        '',
+        '`/translate receive:True send:True` to enable both here.'
+    ].join('\n');
+}
+/**
+ * Registers chat-input commands so a chat can be configured without leaving it.
+ *
+ * Discord builds its command list through `getBuiltInCommands`, so appending to
+ * that result is the stable way to add one: no Discord component is patched and
+ * nothing in the message list is touched.
+ */ function createCommandController(dependencies) {
+    var config = dependencies.config;
+    var unpatch;
+    var registered = [];
+    var idBase = '-1000';
+    function channelIdFrom(ctx) {
+        var _ctx_channel;
+        var id = ctx === null || ctx === void 0 ? void 0 : (_ctx_channel = ctx.channel) === null || _ctx_channel === void 0 ? void 0 : _ctx_channel.id;
+        return typeof id === 'string' && id ? id : null;
+    }
+    function nextCommandId() {
+        try {
+            var _Math;
+            var builtIn = dependencies.commands.getBuiltInCommands(APPLICATION_COMMAND_TYPE_CHAT, true, false);
+            var ids = builtIn.map(function(command) {
+                var _ref;
+                return parseInt(String((_ref = command === null || command === void 0 ? void 0 : command.id) !== null && _ref !== void 0 ? _ref : '0'), 10);
+            }).filter(function(value) {
+                return Number.isFinite(value);
+            });
+            var lowest = ids.length ? (_Math = Math).min.apply(_Math, _to_consumable_array(ids)) : 0;
+            // Stay strictly negative so we can never shadow a Discord command id.
+            return String(Math.min(lowest, 0) - 1);
+        } catch (unused) {
+            return '-1000';
+        }
+    }
+    function decorate(command, offset) {
+        var // One base id per registration, then a unique negative id per command.
+        _command, _id, _command1, _applicationId, _command2, _type, _command3, _displayName, _command4, _untranslatedName, _command5, _displayDescription, _command6, _untranslatedDescription, _command_options;
+        (_id = (_command = command).id) !== null && _id !== void 0 ? _id : _command.id = String(parseInt(idBase, 10) - offset);
+        (_applicationId = (_command1 = command).applicationId) !== null && _applicationId !== void 0 ? _applicationId : _command1.applicationId = '-1';
+        (_type = (_command2 = command).type) !== null && _type !== void 0 ? _type : _command2.type = APPLICATION_COMMAND_TYPE_CHAT;
+        command.inputType = APPLICATION_COMMAND_INPUT_TYPE_BUILT_IN;
+        (_displayName = (_command3 = command).displayName) !== null && _displayName !== void 0 ? _displayName : _command3.displayName = command.name;
+        (_untranslatedName = (_command4 = command).untranslatedName) !== null && _untranslatedName !== void 0 ? _untranslatedName : _command4.untranslatedName = command.name;
+        (_displayDescription = (_command5 = command).displayDescription) !== null && _displayDescription !== void 0 ? _displayDescription : _command5.displayDescription = command.description;
+        (_untranslatedDescription = (_command6 = command).untranslatedDescription) !== null && _untranslatedDescription !== void 0 ? _untranslatedDescription : _command6.untranslatedDescription = command.description;
+        var _iteratorNormalCompletion = true, _didIteratorError = false, _iteratorError = undefined;
+        try {
+            for(var _iterator = ((_command_options = command.options) !== null && _command_options !== void 0 ? _command_options : [])[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true){
+                var option = _step.value;
+                var _option, _displayName1, _option1, _displayDescription1;
+                (_displayName1 = (_option = option).displayName) !== null && _displayName1 !== void 0 ? _displayName1 : _option.displayName = option.name;
+                (_displayDescription1 = (_option1 = option).displayDescription) !== null && _displayDescription1 !== void 0 ? _displayDescription1 : _option1.displayDescription = option.description;
+            }
+        } catch (err) {
+            _didIteratorError = true;
+            _iteratorError = err;
+        } finally{
+            try {
+                if (!_iteratorNormalCompletion && _iterator.return != null) {
+                    _iterator.return();
+                }
+            } finally{
+                if (_didIteratorError) {
+                    throw _iteratorError;
+                }
+            }
+        }
+        return command;
+    }
+    function buildCommands() {
+        var translate = {
+            name: 'translate',
+            description: 'Turn translation on or off for this chat.',
+            options: [
+                {
+                    name: 'receive',
+                    description: 'Show English beneath messages you receive here.',
+                    type: OPTION_TYPE_BOOLEAN
+                },
+                {
+                    name: 'send',
+                    description: 'Send your messages in another language in this chat.',
+                    type: OPTION_TYPE_BOOLEAN
+                },
+                {
+                    name: 'language',
+                    description: 'Language to send in, for example es. Default es.',
+                    type: OPTION_TYPE_STRING
+                },
+                {
+                    name: 'show_english',
+                    description: 'Keep your English visible under your own messages.',
+                    type: OPTION_TYPE_BOOLEAN
+                }
+            ],
+            execute: function execute(args, ctx) {
+                var channelId = channelIdFrom(ctx);
+                if (!channelId) return;
+                var receive = booleanArg(args, 'receive');
+                var send = booleanArg(args, 'send');
+                var showEnglish = booleanArg(args, 'show_english');
+                var language = stringArg(args, 'language');
+                // No arguments: report the current state instead of changing it.
+                if (receive === undefined && send === undefined && showEnglish === undefined && language === undefined) {
+                    dependencies.reply(channelId, formatStatus(config, channelId));
+                    return;
+                }
+                var changes = [];
+                if (language !== undefined) {
+                    var normalized = language.toLocaleLowerCase();
+                    if (!SUPPORTED_LANGUAGES.includes(normalized.split('-')[0])) {
+                        dependencies.reply(channelId, "**".concat(language, "** is not a recognised language code.\n") + "> Try one of: ".concat(SUPPORTED_LANGUAGES.slice(0, 8).join(', ')));
+                        return;
+                    }
+                    config.setOutgoingLanguage(channelId, normalized);
+                    changes.push("send language → **".concat(normalized.toUpperCase(), "**"));
+                }
+                if (receive !== undefined) {
+                    config.setIncoming(channelId, receive);
+                    changes.push("receive → **".concat(receive ? 'on' : 'off', "**"));
+                }
+                if (send !== undefined) {
+                    config.setOutgoing(channelId, send);
+                    changes.push("send → **".concat(send ? 'on' : 'off', "**"));
+                }
+                if (showEnglish !== undefined) {
+                    config.setShowOwnEnglish(channelId, showEnglish);
+                    changes.push("show my English → **".concat(showEnglish ? 'on' : 'off', "**"));
+                }
+                dependencies.reply(channelId, "Updated ".concat(changes.join(', '), ".\n\n").concat(formatStatus(config, channelId)));
+            }
+        };
+        var translateOff = {
+            name: 'translate-off',
+            description: 'Turn all translation off for this chat.',
+            options: [],
+            execute: function execute(_args, ctx) {
+                var channelId = channelIdFrom(ctx);
+                if (!channelId) return;
+                config.reset(channelId);
+                dependencies.reply(channelId, "Translation is now **off** in this chat, both directions.");
+            }
+        };
+        var translateStatus = {
+            name: 'translate-status',
+            description: 'Show translation settings for this chat.',
+            options: [],
+            execute: function execute(_args, ctx) {
+                var channelId = channelIdFrom(ctx);
+                if (!channelId) return;
+                dependencies.reply(channelId, formatStatus(config, channelId));
+            }
+        };
+        return [
+            translate,
+            translateOff,
+            translateStatus
+        ].map(decorate);
+    }
+    return {
+        start: function start() {
+            if (unpatch) return;
+            idBase = nextCommandId();
+            registered = buildCommands();
+            unpatch = dependencies.patchAfter(dependencies.commands, 'getBuiltInCommands', function(args, result) {
+                if (!Array.isArray(result)) return result;
+                var requestedType = args[0];
+                var matches = function matches(command) {
+                    return Array.isArray(requestedType) ? requestedType.includes(command.type) : requestedType === command.type;
+                };
+                return _to_consumable_array(result).concat(_to_consumable_array(registered.filter(matches)));
+            });
+        },
+        stop: function stop() {
+            unpatch === null || unpatch === void 0 ? void 0 : unpatch();
+            unpatch = undefined;
+            registered = [];
+        },
+        definitions: function definitions() {
+            return registered;
         }
     };
 }function toMessageArray(messages) {
@@ -1528,6 +1794,7 @@ function createTranslationClient() {
     });
 }var controller;
 var outgoing;
+var commands;
 function warn(message) {
     try {
         window.unbound.toasts.showToast({
@@ -1535,6 +1802,26 @@ function warn(message) {
         });
     } catch (unused) {
     // Toasts are cosmetic; never let one break a send.
+    }
+}
+/**
+ * Posts a local-only reply in the channel.
+ *
+ * Clyde messages are never sent to Discord, so command feedback stays private
+ * to this device.
+ */ function reply(channelId, content) {
+    try {
+        var message = window.unbound.metro.common.Clyde.createBotMessage({
+            channelId: channelId,
+            content: content
+        });
+        window.unbound.metro.common.Dispatcher.dispatch({
+            type: 'MESSAGE_CREATE',
+            message: message
+        });
+    } catch (error) {
+        console.warn('[Realtime Translator] Could not post command reply:', error);
+        warn('Translation settings updated.');
     }
 }
 var index = {
@@ -1583,14 +1870,29 @@ var index = {
                 return console.warn('[Realtime Translator] Translation failed:', error);
             }
         });
+        commands = createCommandController({
+            commands: window.unbound.metro.common.Commands,
+            config: config,
+            patchAfter: function patchAfter(parent, method, callback) {
+                return window.unbound.patcher.after(parent, method, function(ctx) {
+                    return callback(ctx.args, ctx.result);
+                }, {
+                    caller: STORE_NAME
+                });
+            },
+            reply: reply
+        });
         outgoing.start();
+        commands.start();
         controller.start();
     },
     stop: function stop() {
         controller === null || controller === void 0 ? void 0 : controller.stop();
         outgoing === null || outgoing === void 0 ? void 0 : outgoing.stop();
+        commands === null || commands === void 0 ? void 0 : commands.stop();
         controller = undefined;
         outgoing = undefined;
+        commands = undefined;
     },
     getSettingsPanel: function getSettingsPanel() {
         return buildSettingsPanel();

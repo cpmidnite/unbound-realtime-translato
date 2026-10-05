@@ -98,6 +98,9 @@ export function createRealtimeController(
       || pending.get(messageId) === workGeneration
     ) return;
 
+    // Locally injected Clyde/bot replies are ours, not conversation.
+    if (message?.author?.bot === true) return;
+
     const config = dependencies.config?.for(channelId);
     const currentUserId = dependencies.users.getCurrentUser()?.id;
     const isOwnMessage = Boolean(currentUserId) && authorIdOf(message) === currentUserId;
