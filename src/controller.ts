@@ -1,4 +1,6 @@
 import type { Translation } from './translation';
+import type { ChatConfigController } from './config';
+import type { OutgoingController } from './outgoing';
 
 const TRANSLATION_MARKER = '\n-# ↳ English: ';
 
@@ -20,6 +22,10 @@ interface ControllerDependencies {
   translate(text: string): Promise<Translation | null>;
   abortTranslations(): void;
   onError(error: unknown): void;
+  /** Per-channel enable/disable. Omit to treat every channel as inbound-enabled. */
+  config?: ChatConfigController;
+  /** Supplies the English original for your own outgoing-translated messages. */
+  outgoing?: OutgoingController;
 }
 
 export interface RealtimeController {
@@ -92,8 +98,19 @@ export function createRealtimeController(
       || pending.get(messageId) === workGeneration
     ) return;
 
+    const config = dependencies.config?.for(channelId);
     const currentUserId = dependencies.users.getCurrentUser()?.id;
-    if (currentUserId && authorIdOf(message) === currentUserId) return;
+    const isOwnMessage = Boolean(currentUserId) && authorIdOf(message) === currentUserId;
+
+    if (isOwnMessage) {
+      // Your own message is never sent to the translator: its English original
+      // is already held locally by the outgoing controller.
+      if (config && !config.showOwnEnglish) return;
+      decorateOwnMessage(message, messageId, channelId, content);
+      return;
+    }
+
+    if (config && !config.incoming) return;
 
     pending.set(messageId, workGeneration);
 
@@ -107,31 +124,70 @@ export function createRealtimeController(
       const safeTranslation = escapeTranslation(translation.text);
       if (!safeTranslation) return;
 
-      const decoratedContent = `${content}${TRANSLATION_MARKER}${safeTranslation}`;
-      const plain = toPlainMessage(current);
-      const updated = {
-        ...plain,
-        id: messageId,
-        channel_id: plain.channel_id ?? channelId,
-        content: decoratedContent,
-      };
-
-      dependencies.dispatcher.dispatch({
-        type: 'MESSAGE_UPDATE',
-        message: updated,
-        log_edit: false,
-      });
-
-      modified.set(messageId, {
-        channelId,
-        messageId,
-        originalContent: content,
-        decoratedContent,
-        fallback: updated,
-      });
+      applyTranslation(current, messageId, channelId, content, safeTranslation);
     } finally {
       if (pending.get(messageId) === workGeneration) pending.delete(messageId);
     }
+  }
+
+  /** Re-attaches your English original beneath a message you sent translated. */
+  function decorateOwnMessage(
+    message: any,
+    messageId: string,
+    channelId: string,
+    content: string,
+  ): void {
+    const outgoing = dependencies.outgoing;
+    if (!outgoing) return;
+
+    const nonce = typeof message?.nonce === 'string' || typeof message?.nonce === 'number'
+      ? String(message.nonce)
+      : null;
+
+    const record = nonce
+      ? outgoing.resolveNonce(nonce, messageId)
+      : outgoing.englishFor(messageId);
+
+    if (!record || record.sent !== content) return;
+
+    const safeEnglish = escapeTranslation(record.english);
+    if (!safeEnglish) return;
+
+    const current = dependencies.getMessage(channelId, messageId) ?? message;
+    if (current?.content !== content) return;
+
+    applyTranslation(current, messageId, channelId, content, safeEnglish);
+  }
+
+  function applyTranslation(
+    current: any,
+    messageId: string,
+    channelId: string,
+    originalContent: string,
+    line: string,
+  ): void {
+    const decoratedContent = `${originalContent}${TRANSLATION_MARKER}${line}`;
+    const plain = toPlainMessage(current);
+    const updated = {
+      ...plain,
+      id: messageId,
+      channel_id: plain.channel_id ?? channelId,
+      content: decoratedContent,
+    };
+
+    dependencies.dispatcher.dispatch({
+      type: 'MESSAGE_UPDATE',
+      message: updated,
+      log_edit: false,
+    });
+
+    modified.set(messageId, {
+      channelId,
+      messageId,
+      originalContent,
+      decoratedContent,
+      fallback: updated,
+    });
   }
 
   const onMessageCreate = (event: any): void => {

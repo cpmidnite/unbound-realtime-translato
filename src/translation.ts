@@ -6,6 +6,13 @@ export interface Translation {
   detectedLanguage: string;
 }
 
+export interface TranslateOptions {
+  /** Source language, or `auto` to let the endpoint detect it. */
+  source?: string;
+  /** Target language. Defaults to English. */
+  target?: string;
+}
+
 interface FetchResponse {
   ok: boolean;
   status: number;
@@ -30,7 +37,7 @@ export interface TranslationClientOptions {
 }
 
 export interface TranslationClient {
-  translate(text: string): Promise<Translation | null>;
+  translate(text: string, options?: TranslateOptions): Promise<Translation | null>;
   abort(): void;
 }
 
@@ -40,6 +47,10 @@ function normalized(text: string): string {
 
 function comparable(text: string): string {
   return normalized(text).toLocaleLowerCase();
+}
+
+function baseLanguage(value: string): string {
+  return value.toLocaleLowerCase().split('-')[0] ?? '';
 }
 
 export function hasTranslatableText(text: string): boolean {
@@ -114,13 +125,19 @@ export function createTranslationClient(
     }
   }
 
-  async function request(text: string): Promise<Translation | null> {
+  async function request(
+    text: string,
+    source: string,
+    target: string,
+  ): Promise<Translation | null> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     controllers.add(controller);
 
     const separator = endpoint.includes('?') ? '&' : '?';
-    const url = `${endpoint}${separator}client=dict-chrome-ex&sl=auto&tl=en`;
+    const url = `${endpoint}${separator}client=dict-chrome-ex`
+      + `&sl=${encodeURIComponent(source)}`
+      + `&tl=${encodeURIComponent(target)}`;
 
     try {
       const response = await fetchImpl(url, {
@@ -137,11 +154,11 @@ export function createTranslationClient(
       }
 
       const translation = parseGoogleTranslation(await response.json());
-      const source = translation.detectedLanguage.toLocaleLowerCase().split('-')[0];
+      const detected = baseLanguage(translation.detectedLanguage);
 
-      if (source === 'en' || comparable(translation.text) === comparable(text)) {
-        return null;
-      }
+      // Nothing was gained: the text already reads as the target language.
+      if (detected && detected === baseLanguage(target)) return null;
+      if (comparable(translation.text) === comparable(text)) return null;
 
       return translation;
     } finally {
@@ -151,18 +168,20 @@ export function createTranslationClient(
   }
 
   return {
-    translate(text: string): Promise<Translation | null> {
+    translate(text: string, options: TranslateOptions = {}): Promise<Translation | null> {
       const input = text.trim();
       if (aborted || !input || !hasTranslatableText(input)) return Promise.resolve(null);
 
-      const key = normalized(input);
+      const source = options.source?.trim().toLocaleLowerCase() || 'auto';
+      const target = options.target?.trim().toLocaleLowerCase() || 'en';
+      const key = `${source}>${target}:${normalized(input)}`;
       const cached = readCache(key);
       if (cached.hit) return Promise.resolve(cached.value);
 
       const pending = inFlight.get(key);
       if (pending) return pending;
 
-      const promise = request(input)
+      const promise = request(input, source, target)
         .then((result) => {
           writeCache(key, result);
           return result;
